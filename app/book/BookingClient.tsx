@@ -44,6 +44,8 @@ function getCalendarDays(year: number, month: number) {
   const days: (Date | null)[] = [];
   for (let i = 0; i < startDow; i++) days.push(null);
   for (let d = 1; d <= lastDay.getDate(); d++) days.push(new Date(year, month, d));
+  // Always pad to 42 cells (6 rows) so the calendar never changes height
+  while (days.length < 42) days.push(null);
   return days;
 }
 
@@ -135,8 +137,8 @@ export default function BookingClient({ initialSlots }: Props) {
   if (submitted) {
     return (
       <div className="relative min-h-screen overflow-hidden">
-        <div className="absolute inset-0" style={{ backgroundImage: "url('/bg.jpg')", backgroundSize: "cover", backgroundPosition: "center" }} />
-        <div className="absolute inset-0 bg-black/50" />
+        <div className="fixed inset-0 -z-10" style={{ backgroundImage: "url('/bg.jpg')", backgroundSize: "cover", backgroundPosition: "center" }} />
+        <div className="fixed inset-0 -z-10 bg-black/50" />
         <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-6">
           <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-10 text-center space-y-4 max-w-sm w-full shadow-2xl">
             <div className="w-12 h-12 rounded-full bg-white/20 text-white flex items-center justify-center mx-auto text-xl">✓</div>
@@ -154,10 +156,10 @@ export default function BookingClient({ initialSlots }: Props) {
   return (
     <div className="relative min-h-screen overflow-hidden">
 
-      {/* Full-screen background with cursor parallax */}
+      {/* Fixed background - viewport-relative so content height changes never move it */}
       <div
         ref={bgRef}
-        className="absolute inset-0"
+        className="fixed inset-0 -z-10"
         style={{
           backgroundImage: "url('/bg.jpg')",
           backgroundSize: "cover",
@@ -168,7 +170,7 @@ export default function BookingClient({ initialSlots }: Props) {
       />
 
       {/* Dark overlay */}
-      <div className="absolute inset-0 bg-black/50" />
+      <div className="fixed inset-0 -z-10 bg-black/50" />
 
       {/* Header */}
       <header className="relative z-10 px-4 sm:px-8 py-5 flex items-center justify-between">
