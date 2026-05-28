@@ -149,7 +149,7 @@ export default function BookingClient({ initialSlots }: Props) {
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-6 sm:space-y-8">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Book a shoot</h1>
-          <p className="text-gray-500 mt-1 text-sm">Select a date and start time. Each booking covers a 4-hour slot.</p>
+          <p className="text-gray-500 mt-1 text-sm">Select a date and start time to request your slot.</p>
         </div>
 
         {/* Calendar */}
@@ -217,7 +217,6 @@ export default function BookingClient({ initialSlots }: Props) {
             <h2 className="font-medium text-sm text-gray-700">
               {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
             </h2>
-            <p className="text-xs text-gray-400">Select a start time — your slot runs for 4 hours.</p>
             <div className="flex flex-wrap gap-2">
               {slotsForDate.map((slot) => (
                 <button
@@ -244,7 +243,6 @@ export default function BookingClient({ initialSlots }: Props) {
           <div className="flex items-center justify-between py-1">
             <p className="text-sm font-medium text-gray-700">
               {formatTime(selectedSlot.start_time)} – {formatTime(addHours(selectedSlot.start_time, 4))}
-              <span className="text-gray-400 font-normal ml-1.5">(4 hours)</span>
             </p>
             <button onClick={() => setSelectedSlot(null)} className="text-xs text-gray-400 hover:text-gray-600 touch-manipulation">← Change</button>
           </div>
