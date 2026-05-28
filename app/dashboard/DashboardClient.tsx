@@ -19,6 +19,7 @@ interface Booking {
   client_email: string;
   notes: string | null;
   status: "pending" | "confirmed" | "declined";
+  booking_type: "half_day" | "full_day";
   created_at: string;
   slots: Slot;
 }
@@ -146,8 +147,8 @@ export default function DashboardClient({ bookings, openSlots }: Props) {
                 {pending.map((b) => (
                   <BookingCard
                     key={b.id} booking={b} disabled={isPending}
-                    onApprove={() => startTransition(() => approveBooking(b.id, b.slot_id))}
-                    onDecline={() => startTransition(() => declineBooking(b.id, b.slot_id))}
+                    onApprove={() => startTransition(() => approveBooking(b.id))}
+                    onDecline={() => startTransition(() => declineBooking(b.id))}
                   />
                 ))}
               </div>
@@ -158,8 +159,8 @@ export default function DashboardClient({ bookings, openSlots }: Props) {
                 {earlier.map((b) => (
                   <BookingCard
                     key={b.id} booking={b} disabled={isPending}
-                    onApprove={() => startTransition(() => approveBooking(b.id, b.slot_id))}
-                    onDecline={() => startTransition(() => declineBooking(b.id, b.slot_id))}
+                    onApprove={() => startTransition(() => approveBooking(b.id))}
+                    onDecline={() => startTransition(() => declineBooking(b.id))}
                   />
                 ))}
               </div>
@@ -264,6 +265,7 @@ function BookingCard({
           <p className="font-medium text-sm truncate">{b.property_address}</p>
           <p className="text-sm text-gray-500">
             {formatDate(b.slots.date)} · {formatTime(b.slots.start_time)}
+            {" · "}<span className="capitalize">{b.booking_type === "full_day" ? "Full day" : "Half day"}</span>
           </p>
         </div>
         <StatusBadge status={b.status} />

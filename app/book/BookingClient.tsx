@@ -31,6 +31,11 @@ function formatTime(time: string) {
   return `${h % 12 || 12}:${String(m).padStart(2, "0")}${period}`;
 }
 
+function addHours(time: string, hours: number) {
+  const [h] = time.split(":").map(Number);
+  return `${String(h + hours).padStart(2, "0")}:00:00`;
+}
+
 function getCalendarDays(year: number, month: number) {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
@@ -92,15 +97,18 @@ export default function BookingClient({ initialSlots }: Props) {
     if (!selectedSlot) return;
     setError(null);
     startTransition(async () => {
-      const result = await submitBooking({ slotId: selectedSlot.id, ...form });
+      const result = await submitBooking({ slotId: selectedSlot.id, bookingType: "half_day", ...form });
       if (result.error) {
         setError(result.error);
-        if (result.error.includes("taken")) {
-          setSlots((s) => s.map((sl) => sl.id === selectedSlot.id ? { ...sl, status: "pending" } : sl));
-          setSelectedSlot(null);
-        }
       } else {
-        setSlots((s) => s.map((sl) => sl.id === selectedSlot.id ? { ...sl, status: "pending" } : sl));
+        const startHour = parseInt(selectedSlot.start_time.split(":")[0]);
+        setSlots((s) =>
+          s.map((sl) => {
+            if (sl.date !== selectedSlot.date) return sl;
+            const slHour = parseInt(sl.start_time.split(":")[0]);
+            return slHour >= startHour && slHour < startHour + 4 ? { ...sl, status: "pending" } : sl;
+          })
+        );
         setSubmitted(true);
       }
     });
@@ -111,7 +119,7 @@ export default function BookingClient({ initialSlots }: Props) {
       <div className="min-h-screen flex flex-col">
         <header className="border-b border-gray-100 px-4 sm:px-6 py-4">
           <div className="max-w-2xl mx-auto">
-            <Image src="/logo.png" alt="CVZN Studios" height={120} width={510} className="h-[120px] w-auto" />
+            <Image src="/logo.png" alt="CVZN Studios" height={40} width={170} className="h-10 w-auto" />
           </div>
         </header>
         <div className="flex-1 flex items-center justify-center p-8">
@@ -127,14 +135,13 @@ export default function BookingClient({ initialSlots }: Props) {
     );
   }
 
-  const slotsForSelectedDate = selectedDate ? (slotsByDate[selectedDate] ?? []) : [];
+  const slotsForDate = selectedDate ? (slotsByDate[selectedDate] ?? []) : [];
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
       <header className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 sm:px-6 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <Image src="/logo.png" alt="CVZN Studios" height={120} width={510} className="h-[120px] w-auto" />
+          <Image src="/logo.png" alt="CVZN Studios" height={40} width={170} className="h-10 w-auto" />
           <span className="hidden sm:block text-sm text-gray-400">Visual Property Marketing</span>
         </div>
       </header>
@@ -142,42 +149,27 @@ export default function BookingClient({ initialSlots }: Props) {
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-6 sm:space-y-8">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Book a shoot</h1>
-          <p className="text-gray-500 mt-1 text-sm">Select an available date and time to request your slot.</p>
+          <p className="text-gray-500 mt-1 text-sm">Select a date and start time. Each booking covers a 4-hour slot.</p>
         </div>
 
         {/* Calendar */}
         <div className="border border-gray-200 rounded-xl overflow-hidden">
-          {/* Month nav */}
           <div className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100">
-            <button
-              onClick={prevMonth}
-              className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation"
-              aria-label="Previous month"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
+            <button onClick={prevMonth} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation" aria-label="Previous month">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             </button>
             <span className="font-medium text-sm">{MONTHS[month]} {year}</span>
-            <button
-              onClick={nextMonth}
-              className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation"
-              aria-label="Next month"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+            <button onClick={nextMonth} className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation" aria-label="Next month">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
             </button>
           </div>
 
-          {/* Day headers */}
           <div className="grid grid-cols-7 border-b border-gray-100">
             {DAY_NAMES.map((d) => (
               <div key={d} className="py-2 text-center text-xs font-medium text-gray-400">{d}</div>
             ))}
           </div>
 
-          {/* Day cells */}
           <div className="grid grid-cols-7">
             {calendarDays.map((day, i) => {
               if (!day) return <div key={`empty-${i}`} className="aspect-square" />;
@@ -206,10 +198,7 @@ export default function BookingClient({ initialSlots }: Props) {
                 >
                   <span>{day.getDate()}</span>
                   {!isPast && (hasOpen || hasPending) && (
-                    <span className={[
-                      "w-1 h-1 rounded-full",
-                      isSelected ? "bg-white" : hasOpen ? "bg-green-500" : "bg-gray-300",
-                    ].join(" ")} />
+                    <span className={["w-1 h-1 rounded-full", isSelected ? "bg-white" : hasOpen ? "bg-green-500" : "bg-gray-300"].join(" ")} />
                   )}
                 </button>
               );
@@ -217,50 +206,47 @@ export default function BookingClient({ initialSlots }: Props) {
           </div>
         </div>
 
-        {/* Legend */}
         <p className="text-xs text-gray-400 flex items-center gap-4">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Available
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-gray-300 inline-block" /> Pending
-          </span>
+          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Available</span>
+          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-300 inline-block" /> Pending</span>
         </p>
 
-        {/* Slot picker */}
-        {selectedDate && (
+        {/* Time slot picker */}
+        {selectedDate && !selectedSlot && (
           <div className="space-y-3">
             <h2 className="font-medium text-sm text-gray-700">
-              {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-GB", {
-                weekday: "long", day: "numeric", month: "long", year: "numeric",
-              })}
+              {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
             </h2>
-            {slotsForSelectedDate.length === 0 ? (
-              <p className="text-gray-400 text-sm">No slots available on this date.</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {slotsForSelectedDate.map((slot) => (
-                  <button
-                    key={slot.id}
-                    onClick={() => { if (slot.status === "open") { setSelectedSlot(slot); setError(null); } }}
-                    disabled={slot.status !== "open"}
-                    className={[
-                      "px-4 py-2.5 rounded-lg text-sm font-medium border transition-colors touch-manipulation",
-                      selectedSlot?.id === slot.id
-                        ? "bg-gray-900 text-white border-gray-900"
-                        : slot.status === "open"
-                        ? "border-gray-300 hover:border-gray-900 hover:bg-gray-50 active:bg-gray-100"
-                        : "border-gray-100 text-gray-300 cursor-default",
-                    ].join(" ")}
-                  >
-                    {formatTime(slot.start_time)}
-                    {slot.status === "pending" && (
-                      <span className="ml-1.5 text-xs font-normal">(pending)</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
+            <p className="text-xs text-gray-400">Select a start time — your slot runs for 4 hours.</p>
+            <div className="flex flex-wrap gap-2">
+              {slotsForDate.map((slot) => (
+                <button
+                  key={slot.id}
+                  onClick={() => slot.status === "open" && setSelectedSlot(slot)}
+                  disabled={slot.status !== "open"}
+                  className={[
+                    "px-4 py-2.5 rounded-lg text-sm font-medium border transition-colors touch-manipulation",
+                    slot.status === "open"
+                      ? "border-gray-300 hover:border-gray-900 hover:bg-gray-50 active:bg-gray-100"
+                      : "border-gray-100 text-gray-300 cursor-default",
+                  ].join(" ")}
+                >
+                  {formatTime(slot.start_time)}
+                  {slot.status !== "open" && <span className="ml-1.5 text-xs font-normal">(taken)</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Selected slot summary */}
+        {selectedSlot && (
+          <div className="flex items-center justify-between py-1">
+            <p className="text-sm font-medium text-gray-700">
+              {formatTime(selectedSlot.start_time)} – {formatTime(addHours(selectedSlot.start_time, 4))}
+              <span className="text-gray-400 font-normal ml-1.5">(4 hours)</span>
+            </p>
+            <button onClick={() => setSelectedSlot(null)} className="text-xs text-gray-400 hover:text-gray-600 touch-manipulation">← Change</button>
           </div>
         )}
 
@@ -310,10 +296,7 @@ export default function BookingClient({ initialSlots }: Props) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm text-gray-600">
-                Notes
-                <span className="text-gray-400 font-normal ml-1">(optional)</span>
-              </label>
+              <label className="text-sm text-gray-600">Notes <span className="text-gray-400 font-normal">(optional)</span></label>
               <textarea
                 value={form.notes}
                 onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}

@@ -3,17 +3,17 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
 
-export async function approveBooking(bookingId: string, slotId: string) {
+export async function approveBooking(bookingId: string) {
   const admin = getSupabaseAdmin();
   await admin.from("bookings").update({ status: "confirmed" }).eq("id", bookingId);
-  await admin.from("slots").update({ status: "confirmed" }).eq("id", slotId);
+  await admin.from("slots").update({ status: "confirmed" }).eq("booking_id", bookingId);
   revalidatePath("/dashboard");
 }
 
-export async function declineBooking(bookingId: string, slotId: string) {
+export async function declineBooking(bookingId: string) {
   const admin = getSupabaseAdmin();
+  await admin.from("slots").update({ status: "open", booking_id: null }).eq("booking_id", bookingId);
   await admin.from("bookings").update({ status: "declined" }).eq("id", bookingId);
-  await admin.from("slots").update({ status: "open" }).eq("id", slotId);
   revalidatePath("/dashboard");
 }
 
