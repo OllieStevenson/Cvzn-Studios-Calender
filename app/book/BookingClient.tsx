@@ -172,7 +172,7 @@ export default function BookingClient({ initialSlots }: Props) {
 
       {/* Header */}
       <header className="relative z-10 px-4 sm:px-8 py-5 flex items-center justify-between">
-        <Image src="/logo.png" alt="CVZN Studios" height={160} width={680} className="h-[160px] w-auto" />
+        <Image src="/logo.png" alt="CVZN Studios" height={160} width={680} className="h-[160px] w-auto brightness-0 invert" />
         <span className="hidden sm:block text-sm text-white/60">Visual Property Marketing</span>
       </header>
 
