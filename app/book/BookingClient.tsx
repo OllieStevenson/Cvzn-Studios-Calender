@@ -66,9 +66,10 @@ export default function BookingClient({ initialSlots }: Props) {
     notes: "",
   });
 
-  // Cursor parallax
+  // Cursor parallax — transform is set only via ref so React re-renders never cause a jolt
   const bgRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    if (bgRef.current) bgRef.current.style.transform = "scale(1.08)";
     const handleMouseMove = (e: MouseEvent) => {
       const x = (e.clientX / window.innerWidth - 0.5) * 2;
       const y = (e.clientY / window.innerHeight - 0.5) * 2;
@@ -161,7 +162,6 @@ export default function BookingClient({ initialSlots }: Props) {
           backgroundImage: "url('/bg.jpg')",
           backgroundSize: "cover",
           backgroundPosition: "center",
-          transform: "scale(1.08)",
           transition: "transform 0.15s ease-out",
           willChange: "transform",
         }}
