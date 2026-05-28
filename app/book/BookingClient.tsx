@@ -68,9 +68,11 @@ export default function BookingClient({ initialSlots }: Props) {
     notes: "",
   });
 
-  // Cursor parallax — transform is set only via ref so React re-renders never cause a jolt
+  // Cursor parallax — desktop only, skipped on touch devices to avoid mobile repaints
   const bgRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    const hasMouseCursor = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    if (!hasMouseCursor) return;
     if (bgRef.current) bgRef.current.style.transform = "scale(1.08)";
     const handleMouseMove = (e: MouseEvent) => {
       const x = (e.clientX / window.innerWidth - 0.5) * 2;
