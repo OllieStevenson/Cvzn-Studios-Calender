@@ -172,13 +172,9 @@ export default function BookingClient({ initialSlots }: Props) {
 
       {/* Header */}
       <header className="relative z-10 px-4 sm:px-8 py-5 flex items-center justify-between">
-        <div className="relative inline-flex items-center">
-          {/* Full logo inverted to white */}
-          <Image src="/logo.png" alt="CVZN Studios" height={160} width={680} className="h-[160px] w-auto brightness-0 invert" />
-          {/* Pink arrow overlaid on top of the white arrow portion */}
-          <div className="absolute inset-y-0 left-0 flex items-center" style={{ width: "18%" }}>
-            <Image src="/icon.png" alt="" height={160} width={160} className="h-full w-auto object-contain" />
-          </div>
+        <div className="relative inline-block" style={{ height: "160px", width: "280px" }}>
+          <Image src="/logo.png" alt="CVZN Studios" height={160} width={280} className="h-[160px] w-auto brightness-0 invert" />
+          <Image src="/icon.png" alt="" width={47} height={47} className="absolute" style={{ left: "20px", top: "57px" }} />
         </div>
         <span className="hidden sm:block text-sm text-white/60">Visual Property Marketing</span>
       </header>
