@@ -174,7 +174,7 @@ export default function BookingClient({ initialSlots }: Props) {
       <header className="relative z-10 px-4 sm:px-8 py-5 flex items-center justify-between">
         <div className="relative inline-block" style={{ height: "160px", width: "280px" }}>
           <Image src="/logo.png" alt="CVZN Studios" height={160} width={280} className="h-[160px] w-auto brightness-0 invert" />
-          <Image src="/icon.png" alt="" width={47} height={47} className="absolute" style={{ left: "20px", top: "57.35px" }} />
+          <Image src="/icon.png" alt="" width={47} height={47} className="absolute" style={{ left: "20px", top: "57.15px" }} />
         </div>
         <span className="hidden sm:block text-sm text-white/60">Visual Property Marketing</span>
       </header>
