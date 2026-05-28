@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import Image from "next/image";
 import { submitBooking } from "./actions";
 
@@ -66,6 +66,20 @@ export default function BookingClient({ initialSlots }: Props) {
     notes: "",
   });
 
+  // Cursor parallax
+  const bgRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 2;
+      const y = (e.clientY / window.innerHeight - 0.5) * 2;
+      if (bgRef.current) {
+        bgRef.current.style.transform = `scale(1.08) translate(${x * -12}px, ${y * -12}px)`;
+      }
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
   const slotsByDate = slots.reduce<Record<string, Slot[]>>((acc, slot) => {
     if (!acc[slot.date]) acc[slot.date] = [];
     acc[slot.date].push(slot);
@@ -120,7 +134,7 @@ export default function BookingClient({ initialSlots }: Props) {
   if (submitted) {
     return (
       <div className="relative min-h-screen overflow-hidden">
-        <div className="absolute inset-0 bg-kenburns" style={{ backgroundImage: "url('/bg.jpg')", backgroundSize: "cover", backgroundPosition: "center" }} />
+        <div className="absolute inset-0" style={{ backgroundImage: "url('/bg.jpg')", backgroundSize: "cover", backgroundPosition: "center" }} />
         <div className="absolute inset-0 bg-black/50" />
         <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-6">
           <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-10 text-center space-y-4 max-w-sm w-full shadow-2xl">
@@ -139,10 +153,18 @@ export default function BookingClient({ initialSlots }: Props) {
   return (
     <div className="relative min-h-screen overflow-hidden">
 
-      {/* Full-screen background with Ken Burns */}
+      {/* Full-screen background with cursor parallax */}
       <div
-        className="absolute inset-0 bg-kenburns"
-        style={{ backgroundImage: "url('/bg.jpg')", backgroundSize: "cover", backgroundPosition: "center" }}
+        ref={bgRef}
+        className="absolute inset-0"
+        style={{
+          backgroundImage: "url('/bg.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          transform: "scale(1.08)",
+          transition: "transform 0.15s ease-out",
+          willChange: "transform",
+        }}
       />
 
       {/* Dark overlay */}
@@ -150,7 +172,7 @@ export default function BookingClient({ initialSlots }: Props) {
 
       {/* Header */}
       <header className="relative z-10 px-4 sm:px-8 py-5 flex items-center justify-between">
-        <Image src="/logo.png" alt="CVZN Studios" height={40} width={170} className="h-10 w-auto" />
+        <Image src="/logo.png" alt="CVZN Studios" height={160} width={680} className="h-[160px] w-auto" />
         <span className="hidden sm:block text-sm text-white/60">Visual Property Marketing</span>
       </header>
 
