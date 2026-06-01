@@ -7,7 +7,7 @@ export default function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6 text-gray-900">
       <div className="bg-white border border-gray-200 rounded-xl p-8 w-full max-w-sm space-y-6">
         <div className="space-y-3">
           <Image src="/logo.png" alt="CVZN Studios" height={120} width={510} className="h-[120px] w-auto" />
