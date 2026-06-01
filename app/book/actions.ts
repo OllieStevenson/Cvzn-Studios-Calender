@@ -2,6 +2,7 @@
 
 import { getSupabase, getSupabaseAdmin } from "@/lib/supabase";
 import { Resend } from "resend";
+import { headers } from "next/headers";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -33,6 +34,7 @@ export async function submitBooking(data: {
   clientName: string;
   clientEmail: string;
   notes?: string;
+  turnstileToken: string;
 }) {
   // ── Input validation ────────────────────────────────────────────────
   if (!data.slotIds.length || data.slotIds.length > 10)
@@ -50,6 +52,62 @@ export async function submitBooking(data: {
   if (data.notes && data.notes.length > 1000)
     return { error: "Notes must be under 1000 characters." };
 
+  // ── Get client IP ───────────────────────────────────────────────────
+  const headersList = await headers();
+  const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const email = data.clientEmail.trim().toLowerCase();
+
+  // ── Rate limiting (admin — infrastructure concern, not user data) ───
+  const admin = getSupabaseAdmin();
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const oneDayAgo  = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const [ipCheck, emailCheck] = await Promise.all([
+    admin
+      .from("rate_limits")
+      .select("*", { count: "exact", head: true })
+      .eq("key", `ip:${ip}`)
+      .gte("created_at", oneHourAgo),
+    admin
+      .from("rate_limits")
+      .select("*", { count: "exact", head: true })
+      .eq("key", `email:${email}`)
+      .gte("created_at", oneDayAgo),
+  ]);
+
+  if ((ipCheck.count ?? 0) >= 3)
+    return { error: "Too many requests. Please try again later." };
+  if ((emailCheck.count ?? 0) >= 3)
+    return { error: "Too many requests from this email. Please try again later." };
+
+  // ── Turnstile verification ──────────────────────────────────────────
+  if (process.env.TURNSTILE_SECRET_KEY) {
+    if (!data.turnstileToken)
+      return { error: "Security check failed. Please try again." };
+
+    const verifyRes = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          secret: process.env.TURNSTILE_SECRET_KEY,
+          response: data.turnstileToken,
+          remoteip: ip,
+        }),
+      }
+    );
+    const turnstileResult = await verifyRes.json();
+    if (!turnstileResult.success)
+      return { error: "Security check failed. Please try again." };
+  }
+
+  // Log this attempt — counts toward rate limit even if booking later fails
+  await admin.from("rate_limits").insert([
+    { key: `ip:${ip}` },
+    { key: `email:${email}` },
+  ]);
+
   // ── Reads via anon client (RLS enforced) ───────────────────────────
   const supabase = getSupabase();
 
@@ -60,13 +118,11 @@ export async function submitBooking(data: {
     .order("date")
     .order("start_time");
 
-  if (fetchError || !startSlots || startSlots.length === 0) {
+  if (fetchError || !startSlots || startSlots.length === 0)
     return { error: "Could not find the selected slots." };
-  }
 
-  if (startSlots.some((s) => s.status !== "open")) {
+  if (startSlots.some((s) => s.status !== "open"))
     return { error: "One or more of your selected slots has just been taken. Please review your selection." };
-  }
 
   const allSlotIdsToBlock: string[] = [];
 
@@ -86,13 +142,10 @@ export async function submitBooking(data: {
     if (block) allSlotIdsToBlock.push(...block.map((s) => s.id));
   }
 
-  if (allSlotIdsToBlock.length === 0) {
+  if (allSlotIdsToBlock.length === 0)
     return { error: "No available slots found." };
-  }
 
-  // ── Writes via admin client (elevated scope, post-validation only) ──
-  const admin = getSupabaseAdmin();
-
+  // ── Writes via admin (elevated scope, post-validation only) ────────
   const { data: booking, error: bookingError } = await admin
     .from("bookings")
     .insert({
@@ -100,7 +153,7 @@ export async function submitBooking(data: {
       services: data.services,
       property_address: data.propertyAddress.trim(),
       client_name: data.clientName.trim(),
-      client_email: data.clientEmail.trim().toLowerCase(),
+      client_email: email,
       notes: data.notes?.trim() || null,
       status: "pending",
       booking_type: "half_day",
@@ -108,9 +161,8 @@ export async function submitBooking(data: {
     .select()
     .single();
 
-  if (bookingError || !booking) {
+  if (bookingError || !booking)
     return { error: "Something went wrong. Please try again." };
-  }
 
   const { error: updateError } = await admin
     .from("slots")
@@ -171,7 +223,7 @@ export async function submitBooking(data: {
           </tr>
           <tr>
             <td style="padding:8px 0;color:#666">Email</td>
-            <td style="padding:8px 0"><a href="mailto:${data.clientEmail}" style="color:#111">${data.clientEmail}</a></td>
+            <td style="padding:8px 0"><a href="mailto:${email}" style="color:#111">${email}</a></td>
           </tr>
           ${data.notes ? `
           <tr>
@@ -193,7 +245,7 @@ export async function submitBooking(data: {
 
   await resend.emails.send({
     from: "CVZN Studios <bookings@cvznstudios.co.uk>",
-    to: data.clientEmail,
+    to: email,
     replyTo: "ollie@cvznstudios.co.uk",
     subject: `Booking request received — ${data.propertyAddress}`,
     text: `Hi ${data.clientName},\n\nWe've received your shoot request and will confirm within 24 hours.\n\n${sessions.length === 1 ? "Session" : "Sessions"}:\n${sessionPlainText}\n\nServices: ${data.services.join(", ")}\nProperty: ${data.propertyAddress}${data.notes ? `\nNotes: ${data.notes}` : ""}\n\nQuestions? Reply to this email or contact ollie@cvznstudios.co.uk\n\nCVZN Studios`,

@@ -67,6 +67,7 @@ export default function BookingClient({ initialSlots }: Props) {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [ready, setReady] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSessions, setSelectedSessions] = useState<Slot[]>([]);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
@@ -94,6 +95,23 @@ export default function BookingClient({ initialSlots }: Props) {
     const t = requestAnimationFrame(() => setReady(true))
     return () => cancelAnimationFrame(t)
   }, [])
+
+  // Load Turnstile script and expose callbacks
+  const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY) return;
+    (window as any).cvznTurnstileSuccess = (token: string) => setTurnstileToken(token);
+    (window as any).cvznTurnstileExpired = () => setTurnstileToken("");
+    const script = document.createElement("script");
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+    script.async = true;
+    document.head.appendChild(script);
+    return () => {
+      document.head.removeChild(script);
+      delete (window as any).cvznTurnstileSuccess;
+      delete (window as any).cvznTurnstileExpired;
+    };
+  }, [TURNSTILE_SITE_KEY]);
 
   // Cursor parallax — desktop only
   const bgRef = useRef<HTMLDivElement>(null);
@@ -157,6 +175,7 @@ export default function BookingClient({ initialSlots }: Props) {
       const result = await submitBooking({
         slotIds: selectedSessions.map((s) => s.id),
         services: selectedServices,
+        turnstileToken,
         ...form,
       });
       if (result.error) {
@@ -484,9 +503,19 @@ export default function BookingClient({ initialSlots }: Props) {
 
                   {error && <p className="text-sm text-red-300">{error}</p>}
 
+                  {TURNSTILE_SITE_KEY && (
+                    <div
+                      className="cf-turnstile"
+                      data-sitekey={TURNSTILE_SITE_KEY}
+                      data-callback="cvznTurnstileSuccess"
+                      data-expired-callback="cvznTurnstileExpired"
+                      data-theme="dark"
+                    />
+                  )}
+
                   <button
                     type="submit"
-                    disabled={isPending || selectedServices.length === 0}
+                    disabled={isPending || selectedServices.length === 0 || (!!TURNSTILE_SITE_KEY && !turnstileToken)}
                     className="w-full bg-white text-gray-900 py-3 rounded-lg text-sm font-semibold hover:bg-white/90 active:bg-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                   >
                     {isPending
