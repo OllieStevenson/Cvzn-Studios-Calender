@@ -15,11 +15,16 @@ export default function Home() {
   }, [])
 
   function navigateToBook() {
-    if ('startViewTransition' in document) {
-      document.startViewTransition(() => router.push('/book'))
-    } else {
-      router.push('/book')
-    }
+    const overlay = document.getElementById('pt-overlay')
+    if (!overlay) { router.push('/book'); return }
+
+    // Fade to black
+    overlay.classList.remove('pt-out')
+    overlay.getBoundingClientRect() // force reflow
+    overlay.classList.add('pt-in')
+
+    // Navigate once the fade-in completes
+    setTimeout(() => router.push('/book'), 460)
   }
 
   return (

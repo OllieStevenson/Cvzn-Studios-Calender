@@ -79,6 +79,18 @@ export default function BookingClient({ initialSlots }: Props) {
     notes: "",
   });
 
+  // Fade out the page transition overlay on mount
+  useEffect(() => {
+    const overlay = document.getElementById('pt-overlay')
+    if (!overlay) return
+    requestAnimationFrame(() => {
+      overlay.classList.remove('pt-in')
+      overlay.classList.add('pt-out')
+      const t = setTimeout(() => overlay.classList.remove('pt-out'), 700)
+      return () => clearTimeout(t)
+    })
+  }, [])
+
   // Cursor parallax — desktop only
   const bgRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
