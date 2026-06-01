@@ -70,7 +70,7 @@ export default function BookingClient({ initialSlots }: Props) {
   const [turnstileToken, setTurnstileToken] = useState("");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const turnstileContainerRef = useRef<HTMLDivElement>(null);
-  const turnstileWidgetId = useRef<string | undefined>();
+  const turnstileWidgetId = useRef<string | undefined>(undefined);
   const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const [selectedSessions, setSelectedSessions] = useState<Slot[]>([]);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
