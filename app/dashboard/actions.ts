@@ -1,12 +1,110 @@
 "use server";
 
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+function formatDate(dateStr: string) {
+  return new Date(dateStr + "T12:00:00").toLocaleDateString("en-GB", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
+}
+
+function formatTime(time: string) {
+  const [h, m] = time.split(":").map(Number);
+  const period = h >= 12 ? "pm" : "am";
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")}${period}`;
+}
+
+function addHours(time: string, hours: number): string {
+  const [h] = time.split(":").map(Number);
+  return `${String(h + hours).padStart(2, "0")}:00:00`;
+}
+
+// Identifies the start slot of each session from a flat list of hourly slots.
+// A new session starts when there's a gap > 1 hour or a new date.
+function identifySessionStarts(slots: { date: string; start_time: string }[]) {
+  if (slots.length === 0) return [];
+  const sorted = [...slots].sort(
+    (a, b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time)
+  );
+  const sessions = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const curr = sorted[i];
+    const prevHour = parseInt(prev.start_time.split(":")[0]);
+    const currHour = parseInt(curr.start_time.split(":")[0]);
+    if (curr.date !== prev.date || currHour > prevHour + 1) {
+      sessions.push(curr);
+    }
+  }
+  return sessions;
+}
 
 export async function approveBooking(bookingId: string) {
   const admin = getSupabaseAdmin();
+
+  // Fetch booking details before updating (needed for email)
+  const { data: booking } = await admin
+    .from("bookings")
+    .select("client_email, client_name, property_address")
+    .eq("id", bookingId)
+    .single();
+
   await admin.from("bookings").update({ status: "confirmed" }).eq("id", bookingId);
   await admin.from("slots").update({ status: "confirmed" }).eq("booking_id", bookingId);
+
+  // Send confirmation email to client
+  if (booking) {
+    const { data: linkedSlots } = await admin
+      .from("slots")
+      .select("date, start_time")
+      .eq("booking_id", bookingId)
+      .order("date")
+      .order("start_time");
+
+    const sessions = identifySessionStarts(linkedSlots ?? []);
+    const sessionListHtml = sessions
+      .map(
+        (s) =>
+          `<li style="padding:4px 0">${formatDate(s.date)} <span style="color:#555">— ${formatTime(s.start_time)}–${formatTime(addHours(s.start_time, 4))}</span></li>`
+      )
+      .join("");
+
+    await resend.emails.send({
+      from: "CVZN Studios <bookings@cvznstudios.co.uk>",
+      to: booking.client_email,
+      subject: `Booking confirmed — ${booking.property_address}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:520px;color:#111">
+          <h2 style="margin:0 0 8px;font-size:18px">Your shoot is confirmed ✓</h2>
+          <p style="margin:0 0 20px;color:#555;font-size:14px">
+            Hi ${booking.client_name}, your shoot has been confirmed. We look forward to seeing you.
+          </p>
+          <table style="width:100%;border-collapse:collapse;font-size:14px">
+            <tr>
+              <td style="padding:8px 0;color:#666;width:120px;vertical-align:top">
+                ${sessions.length === 1 ? "Session" : "Sessions"}
+              </td>
+              <td style="padding:8px 0">
+                <ul style="margin:0;padding:0;list-style:none">${sessionListHtml}</ul>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;color:#666">Property</td>
+              <td style="padding:8px 0;font-weight:500">${booking.property_address}</td>
+            </tr>
+          </table>
+          <p style="margin:24px 0 0;font-size:13px;color:#999">
+            Questions? Email <a href="mailto:ollie@cvznstudios.co.uk" style="color:#111">ollie@cvznstudios.co.uk</a>
+          </p>
+        </div>
+      `,
+    }).catch((err) => console.error("Confirmation email failed:", err));
+  }
+
   revalidatePath("/dashboard");
 }
 

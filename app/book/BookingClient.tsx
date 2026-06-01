@@ -31,9 +31,21 @@ function formatTime(time: string) {
   return `${h % 12 || 12}:${String(m).padStart(2, "0")}${period}`;
 }
 
-function addHours(time: string, hours: number) {
+function addHours(time: string, hours: number): string {
   const [h] = time.split(":").map(Number);
   return `${String(h + hours).padStart(2, "0")}:00:00`;
+}
+
+function formatDateShort(dateStr: string) {
+  return new Date(dateStr + "T12:00:00").toLocaleDateString("en-GB", {
+    weekday: "short", day: "numeric", month: "short",
+  });
+}
+
+function formatDateLong(dateStr: string) {
+  return new Date(dateStr + "T12:00:00").toLocaleDateString("en-GB", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
 }
 
 function getCalendarDays(year: number, month: number) {
@@ -44,7 +56,6 @@ function getCalendarDays(year: number, month: number) {
   const days: (Date | null)[] = [];
   for (let i = 0; i < startDow; i++) days.push(null);
   for (let d = 1; d <= lastDay.getDate(); d++) days.push(new Date(year, month, d));
-  // Always pad to 42 cells (6 rows) so the calendar never changes height
   while (days.length < 42) days.push(null);
   return days;
 }
@@ -56,7 +67,7 @@ export default function BookingClient({ initialSlots }: Props) {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
+  const [selectedSessions, setSelectedSessions] = useState<Slot[]>([]);
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +79,7 @@ export default function BookingClient({ initialSlots }: Props) {
     notes: "",
   });
 
-  // Cursor parallax — desktop only, skipped on touch devices to avoid mobile repaints
+  // Cursor parallax — desktop only
   const bgRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const hasMouseCursor = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
@@ -85,6 +96,8 @@ export default function BookingClient({ initialSlots }: Props) {
     return () => window.removeEventListener("mousemove", handleMouseMove);
   }, []);
 
+  const mySlotIds = new Set(selectedSessions.map((s) => s.id));
+
   const slotsByDate = slots.reduce<Record<string, Slot[]>>((acc, slot) => {
     if (!acc[slot.date]) acc[slot.date] = [];
     acc[slot.date].push(slot);
@@ -96,36 +109,52 @@ export default function BookingClient({ initialSlots }: Props) {
   function prevMonth() {
     if (month === 0) { setYear((y) => y - 1); setMonth(11); }
     else setMonth((m) => m - 1);
-    setSelectedDate(null); setSelectedSlot(null);
+    setSelectedDate(null);
   }
 
   function nextMonth() {
     if (month === 11) { setYear((y) => y + 1); setMonth(0); }
     else setMonth((m) => m + 1);
-    setSelectedDate(null); setSelectedSlot(null);
+    setSelectedDate(null);
   }
 
-  function selectDate(day: Date) {
-    setSelectedDate(toDateKey(day));
-    setSelectedSlot(null);
-    setError(null);
+  function handleSlotClick(slot: Slot) {
+    if (mySlotIds.has(slot.id)) {
+      // Already selected — remove it
+      setSelectedSessions((prev) => prev.filter((s) => s.id !== slot.id));
+    } else if (slot.status === "open") {
+      // Add to sessions, close the time picker
+      setSelectedSessions((prev) => [...prev, slot]);
+      setSelectedDate(null);
+    }
+  }
+
+  function removeSession(slotId: string) {
+    setSelectedSessions((prev) => prev.filter((s) => s.id !== slotId));
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedSlot) return;
+    if (selectedSessions.length === 0) return;
     setError(null);
     startTransition(async () => {
-      const result = await submitBooking({ slotId: selectedSlot.id, bookingType: "half_day", ...form });
+      const result = await submitBooking({
+        slotIds: selectedSessions.map((s) => s.id),
+        ...form,
+      });
       if (result.error) {
         setError(result.error);
       } else {
-        const startHour = parseInt(selectedSlot.start_time.split(":")[0]);
-        setSlots((s) =>
-          s.map((sl) => {
-            if (sl.date !== selectedSlot.date) return sl;
+        // Optimistically mark all selected sessions' 4-hour blocks as pending
+        setSlots((prev) =>
+          prev.map((sl) => {
+            const session = selectedSessions.find((s) => s.date === sl.date);
+            if (!session) return sl;
+            const sessionHour = parseInt(session.start_time.split(":")[0]);
             const slHour = parseInt(sl.start_time.split(":")[0]);
-            return slHour >= startHour && slHour < startHour + 4 ? { ...sl, status: "pending" } : sl;
+            return slHour >= sessionHour && slHour < sessionHour + 4
+              ? { ...sl, status: "pending" }
+              : sl;
           })
         );
         setSubmitted(true);
@@ -134,31 +163,43 @@ export default function BookingClient({ initialSlots }: Props) {
   }
 
   const slotsForDate = selectedDate ? (slotsByDate[selectedDate] ?? []) : [];
+  const sortedSessions = selectedSessions
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time));
 
-  // ── Submitted confirmation ──────────────────────────────────────────
+  // ── Confirmation screen ──────────────────────────────────────────────
   if (submitted) {
     return (
       <div className="relative min-h-screen overflow-hidden">
         <div className="fixed inset-0 -z-10" style={{ backgroundImage: "url('/bg.jpg')", backgroundSize: "cover", backgroundPosition: "center" }} />
         <div className="fixed inset-0 -z-10 bg-black/50" />
         <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-6">
-          <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-10 text-center space-y-4 max-w-sm w-full shadow-2xl">
+          <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-10 text-center space-y-5 max-w-sm w-full shadow-2xl">
             <div className="w-12 h-12 rounded-full bg-white/20 text-white flex items-center justify-center mx-auto text-xl">✓</div>
-            <h2 className="text-xl font-semibold text-white">Request received</h2>
-            <p className="text-white/70 text-sm leading-relaxed">
-              Thanks — Ollie will confirm your shoot by email within 24 hours.
-            </p>
+            <div>
+              <h2 className="text-xl font-semibold text-white">Request received</h2>
+              <p className="text-white/60 text-sm mt-1.5 leading-relaxed">
+                We've sent a confirmation to your email and will be in touch within 24 hours.
+              </p>
+            </div>
+            {sortedSessions.length > 0 && (
+              <div className="text-left space-y-1.5 border-t border-white/10 pt-4">
+                {sortedSessions.map((s) => (
+                  <p key={s.id} className="text-xs text-white/50">
+                    {formatDateShort(s.date)} · {formatTime(s.start_time)}–{formatTime(addHours(s.start_time, 4))}
+                  </p>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
     );
   }
 
-  // ── Main layout ─────────────────────────────────────────────────────
+  // ── Main layout ──────────────────────────────────────────────────────
   return (
     <div className="relative min-h-screen overflow-hidden">
-
-      {/* Fixed background - viewport-relative so content height changes never move it */}
       <div
         ref={bgRef}
         className="fixed inset-0 -z-10"
@@ -170,8 +211,6 @@ export default function BookingClient({ initialSlots }: Props) {
           willChange: "transform",
         }}
       />
-
-      {/* Dark overlay */}
       <div className="fixed inset-0 -z-10 bg-black/50" />
 
       {/* Header */}
@@ -183,17 +222,14 @@ export default function BookingClient({ initialSlots }: Props) {
         <span className="hidden sm:block text-sm text-white/60">Visual Property Marketing</span>
       </header>
 
-      {/* Scrollable content */}
       <div className="relative z-10 flex justify-center px-4 pb-12 pt-4">
         <div className="w-full max-w-lg">
-
-          {/* Frosted glass card */}
           <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl overflow-hidden">
 
             {/* Card header */}
             <div className="px-6 pt-6 pb-4 border-b border-white/10">
               <h1 className="text-xl font-semibold text-white tracking-tight">Book a shoot</h1>
-              <p className="text-white/60 text-sm mt-0.5">Select a date and start time.</p>
+              <p className="text-white/60 text-sm mt-0.5">Select one or more dates and times.</p>
             </div>
 
             <div className="px-4 sm:px-6 py-5 space-y-5">
@@ -221,30 +257,38 @@ export default function BookingClient({ initialSlots }: Props) {
                     if (!day) return <div key={`empty-${i}`} className="aspect-square" />;
                     const key = toDateKey(day);
                     const daySlots = slotsByDate[key] ?? [];
-                    const hasOpen = daySlots.some((s) => s.status === "open");
-                    const hasPending = !hasOpen && daySlots.some((s) => s.status === "pending");
+                    const hasMySession = selectedSessions.some((s) => s.date === key);
+                    const hasOpen = daySlots.some((s) => s.status === "open" && !mySlotIds.has(s.id));
+                    const hasPending = !hasOpen && !hasMySession && daySlots.some((s) => s.status === "pending");
                     const isSelected = selectedDate === key;
                     const isPast = key < todayKey;
                     const isToday = key === todayKey;
-                    const isClickable = !isPast && hasOpen;
+                    const isClickable = !isPast && (hasOpen || hasMySession);
 
                     return (
                       <button
                         key={key}
-                        onClick={() => isClickable && selectDate(day)}
+                        onClick={() => isClickable && setSelectedDate(isSelected ? null : key)}
                         disabled={!isClickable}
                         className={[
                           "aspect-square min-h-[40px] flex flex-col items-center justify-center gap-0.5 text-sm transition-colors touch-manipulation select-none",
                           isSelected ? "bg-white/25 text-white font-semibold" : "",
-                          !isSelected && isClickable ? "text-green-300 hover:bg-white/10 active:bg-white/20 cursor-pointer" : "",
-                          isPast || (!hasOpen && !hasPending) ? "text-white/20 cursor-default" : "",
+                          !isSelected && hasOpen ? "text-green-300 hover:bg-white/10 active:bg-white/20 cursor-pointer" : "",
+                          !isSelected && hasMySession && !hasOpen ? "text-amber-300 hover:bg-white/10 cursor-pointer" : "",
+                          !isSelected && hasMySession && hasOpen ? "text-green-300 hover:bg-white/10 cursor-pointer" : "",
+                          isPast || (!hasOpen && !hasPending && !hasMySession) ? "text-white/20 cursor-default" : "",
                           !isPast && hasPending && !isSelected ? "text-white/30" : "",
                           isToday && !isSelected ? "font-semibold" : "",
                         ].filter(Boolean).join(" ")}
                       >
                         <span>{day.getDate()}</span>
-                        {!isPast && (hasOpen || hasPending) && (
-                          <span className={["w-1 h-1 rounded-full", isSelected ? "bg-white" : hasOpen ? "bg-green-400" : "bg-white/30"].join(" ")} />
+                        {!isPast && (hasOpen || hasPending || hasMySession) && (
+                          <span className={[
+                            "w-1 h-1 rounded-full",
+                            isSelected ? "bg-white" :
+                            hasMySession ? "bg-amber-400" :
+                            hasOpen ? "bg-green-400" : "bg-white/30",
+                          ].join(" ")} />
                         )}
                       </button>
                     );
@@ -253,50 +297,86 @@ export default function BookingClient({ initialSlots }: Props) {
               </div>
 
               {/* Legend */}
-              <p className="text-xs text-white/40 flex items-center gap-4">
+              <p className="text-xs text-white/40 flex items-center gap-4 flex-wrap">
                 <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" /> Available</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /> Selected</span>
                 <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-white/30 inline-block" /> Pending</span>
               </p>
 
               {/* Time slot picker */}
-              {selectedDate && !selectedSlot && (
+              {selectedDate && (
                 <div className="space-y-3">
-                  <h2 className="font-medium text-sm text-white/80">
-                    {new Date(selectedDate + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-                  </h2>
-                  <div className="flex flex-wrap gap-2">
-                    {slotsForDate.map((slot) => (
-                      <button
-                        key={slot.id}
-                        onClick={() => slot.status === "open" && setSelectedSlot(slot)}
-                        disabled={slot.status !== "open"}
-                        className={[
-                          "px-3.5 py-2 rounded-lg text-sm font-medium border transition-colors touch-manipulation",
-                          slot.status === "open"
-                            ? "border-white/30 text-white hover:bg-white/20 active:bg-white/30"
-                            : "border-white/10 text-white/25 cursor-default",
-                        ].join(" ")}
-                      >
-                        {formatTime(slot.start_time)}
-                        {slot.status !== "open" && <span className="ml-1 text-xs font-normal">(taken)</span>}
-                      </button>
-                    ))}
-                  </div>
+                  <h2 className="font-medium text-sm text-white/80">{formatDateLong(selectedDate)}</h2>
+                  {slotsForDate.length === 0 ? (
+                    <p className="text-sm text-white/40">No slots available on this date.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {slotsForDate.map((slot) => {
+                        const isMine = mySlotIds.has(slot.id);
+                        return (
+                          <button
+                            key={slot.id}
+                            onClick={() => handleSlotClick(slot)}
+                            disabled={slot.status !== "open" && !isMine}
+                            className={[
+                              "px-3.5 py-2 rounded-lg text-sm font-medium border transition-colors touch-manipulation",
+                              isMine
+                                ? "bg-amber-400/20 border-amber-400/50 text-amber-300 hover:bg-amber-400/30"
+                                : slot.status === "open"
+                                ? "border-white/30 text-white hover:bg-white/20 active:bg-white/30"
+                                : "border-white/10 text-white/25 cursor-default",
+                            ].join(" ")}
+                          >
+                            {formatTime(slot.start_time)}
+                            {isMine && <span className="ml-1.5 text-xs opacity-80">✓</span>}
+                            {!isMine && slot.status !== "open" && <span className="ml-1 text-xs font-normal">(taken)</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p className="text-xs text-white/35">Each session is 4 hours. Tap a time to add it — tap ✓ to remove.</p>
                 </div>
               )}
 
-              {/* Selected slot summary */}
-              {selectedSlot && (
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-white">
-                    {formatTime(selectedSlot.start_time)} – {formatTime(addHours(selectedSlot.start_time, 4))}
-                  </p>
-                  <button onClick={() => setSelectedSlot(null)} className="text-xs text-white/40 hover:text-white/70 touch-manipulation">← Change</button>
+              {/* Selected sessions list */}
+              {selectedSessions.length > 0 && (
+                <div className="space-y-2 border-t border-white/10 pt-4">
+                  <h2 className="text-sm font-medium text-white/80">
+                    {selectedSessions.length === 1 ? "1 session selected" : `${selectedSessions.length} sessions selected`}
+                  </h2>
+                  <div className="space-y-1.5">
+                    {sortedSessions.map((session) => (
+                      <div key={session.id} className="flex items-center justify-between bg-white/5 rounded-lg px-3.5 py-2.5">
+                        <p className="text-sm text-white">
+                          {formatDateShort(session.date)}
+                          <span className="text-white/50 ml-2">
+                            {formatTime(session.start_time)} – {formatTime(addHours(session.start_time, 4))}
+                          </span>
+                        </p>
+                        <button
+                          onClick={() => removeSession(session.id)}
+                          className="text-white/30 hover:text-white/70 transition-colors ml-3 touch-manipulation text-lg leading-none"
+                          aria-label="Remove session"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  {!selectedDate && (
+                    <button
+                      onClick={() => setSelectedDate(null)}
+                      className="text-xs text-white/40 hover:text-white/70 transition-colors touch-manipulation"
+                    >
+                      + Add another date
+                    </button>
+                  )}
                 </div>
               )}
 
               {/* Booking form */}
-              {selectedSlot && (
+              {selectedSessions.length > 0 && (
                 <form onSubmit={handleSubmit} className="space-y-4 border-t border-white/10 pt-5">
                   <h2 className="font-medium text-white text-sm">Your details</h2>
 
@@ -355,11 +435,15 @@ export default function BookingClient({ initialSlots }: Props) {
                     disabled={isPending}
                     className="w-full bg-white text-gray-900 py-3 rounded-lg text-sm font-semibold hover:bg-white/90 active:bg-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                   >
-                    {isPending ? "Sending request…" : "Request this slot"}
+                    {isPending
+                      ? "Sending request…"
+                      : selectedSessions.length === 1
+                      ? "Request this slot"
+                      : `Request ${selectedSessions.length} sessions`}
                   </button>
 
                   <p className="text-xs text-white/30 text-center pb-1">
-                    Ollie will confirm your booking by email within 24 hours.
+                    We'll confirm your booking by email within 24 hours.
                   </p>
                 </form>
               )}

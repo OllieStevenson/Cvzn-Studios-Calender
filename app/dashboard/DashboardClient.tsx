@@ -11,6 +11,11 @@ interface Slot {
   status: "open" | "pending" | "confirmed";
 }
 
+interface Session {
+  date: string;
+  start_time: string;
+}
+
 interface Booking {
   id: string;
   slot_id: string;
@@ -22,6 +27,7 @@ interface Booking {
   booking_type: "half_day" | "full_day";
   created_at: string;
   slots: Slot;
+  sessions: Session[];
 }
 
 interface Props {
@@ -33,6 +39,11 @@ function formatTime(time: string) {
   const [h, m] = time.split(":").map(Number);
   const period = h >= 12 ? "pm" : "am";
   return `${h % 12 || 12}:${String(m).padStart(2, "0")}${period}`;
+}
+
+function addHours(time: string, hours: number): string {
+  const [h] = time.split(":").map(Number);
+  return `${String(h + hours).padStart(2, "0")}:00:00`;
 }
 
 function formatDate(dateStr: string) {
@@ -258,15 +269,25 @@ function BookingCard({
   onApprove: () => void;
   onDecline: () => void;
 }) {
+  const sessions = b.sessions.length > 0
+    ? b.sessions
+    : [{ date: b.slots?.date, start_time: b.slots?.start_time }].filter(Boolean) as Session[];
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 space-y-3.5">
       <div className="flex items-start justify-between gap-3">
-        <div className="space-y-0.5 min-w-0">
+        <div className="space-y-1 min-w-0">
           <p className="font-medium text-sm truncate">{b.property_address}</p>
-          <p className="text-sm text-gray-500">
-            {formatDate(b.slots.date)} · {formatTime(b.slots.start_time)}
-            {" · "}<span className="capitalize">{b.booking_type === "full_day" ? "Full day" : "Half day"}</span>
-          </p>
+          <div className="space-y-0.5">
+            {sessions.map((s, i) => (
+              <p key={i} className="text-sm text-gray-500">
+                {formatDate(s.date)} · {formatTime(s.start_time)}–{formatTime(addHours(s.start_time, 4))}
+              </p>
+            ))}
+          </div>
+          {sessions.length > 1 && (
+            <p className="text-xs text-gray-400">{sessions.length} sessions</p>
+          )}
         </div>
         <StatusBadge status={b.status} />
       </div>

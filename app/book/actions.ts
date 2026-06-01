@@ -17,9 +17,13 @@ function formatTime(time: string) {
   return `${h % 12 || 12}:${String(m).padStart(2, "0")}${period}`;
 }
 
+function addHours(time: string, hours: number): string {
+  const [h] = time.split(":").map(Number);
+  return `${String(h + hours).padStart(2, "0")}:00:00`;
+}
+
 export async function submitBooking(data: {
-  slotId: string;
-  bookingType: "half_day" | "full_day";
+  slotIds: string[];
   propertyAddress: string;
   clientName: string;
   clientEmail: string;
@@ -27,33 +31,30 @@ export async function submitBooking(data: {
 }) {
   const admin = getSupabaseAdmin();
 
-  // Fetch the selected start slot
-  const { data: startSlot, error: fetchError } = await admin
+  // Fetch all selected start slots
+  const { data: startSlots, error: fetchError } = await admin
     .from("slots")
     .select("*")
-    .eq("id", data.slotId)
-    .single();
+    .in("id", data.slotIds)
+    .order("date")
+    .order("start_time");
 
-  if (fetchError || !startSlot || startSlot.status !== "open") {
-    return { error: "This slot has just been taken. Please choose another time." };
+  if (fetchError || !startSlots || startSlots.length === 0) {
+    return { error: "Could not find the selected slots." };
   }
 
-  // Find all slots to block
-  let slotsToBlock: { id: string }[] = [];
+  if (startSlots.some((s) => s.status !== "open")) {
+    return { error: "One or more of your selected slots has just been taken. Please review your selection." };
+  }
 
-  if (data.bookingType === "full_day") {
-    const { data: daySlots } = await admin
-      .from("slots")
-      .select("id")
-      .eq("date", startSlot.date)
-      .eq("status", "open")
-      .order("start_time");
-    slotsToBlock = daySlots ?? [];
-  } else {
-    // Half day: block 4 hours from the selected time
+  // For each session, find and collect the 4-hour block to reserve
+  const allSlotIdsToBlock: string[] = [];
+
+  for (const startSlot of startSlots) {
     const startHour = parseInt(startSlot.start_time.split(":")[0]);
     const endTime = `${String(startHour + 4).padStart(2, "0")}:00:00`;
-    const { data: halfSlots } = await admin
+
+    const { data: block } = await admin
       .from("slots")
       .select("id")
       .eq("date", startSlot.date)
@@ -61,24 +62,25 @@ export async function submitBooking(data: {
       .gte("start_time", startSlot.start_time)
       .lt("start_time", endTime)
       .order("start_time");
-    slotsToBlock = halfSlots ?? [];
+
+    if (block) allSlotIdsToBlock.push(...block.map((s) => s.id));
   }
 
-  if (slotsToBlock.length === 0) {
+  if (allSlotIdsToBlock.length === 0) {
     return { error: "No available slots found." };
   }
 
-  // Create the booking
+  // Create one booking record (primary slot = first selected)
   const { data: booking, error: bookingError } = await admin
     .from("bookings")
     .insert({
-      slot_id: data.slotId,
+      slot_id: data.slotIds[0],
       property_address: data.propertyAddress,
       client_name: data.clientName,
       client_email: data.clientEmail,
       notes: data.notes || null,
       status: "pending",
-      booking_type: data.bookingType,
+      booking_type: "half_day",
     })
     .select()
     .single();
@@ -87,11 +89,11 @@ export async function submitBooking(data: {
     return { error: "Something went wrong. Please try again." };
   }
 
-  // Mark all affected slots as pending, linked to this booking
+  // Mark all slots as pending, linked to this booking
   const { error: updateError } = await admin
     .from("slots")
     .update({ status: "pending", booking_id: booking.id })
-    .in("id", slotsToBlock.map((s) => s.id))
+    .in("id", allSlotIdsToBlock)
     .eq("status", "open");
 
   if (updateError) {
@@ -99,11 +101,31 @@ export async function submitBooking(data: {
     return { error: "Something went wrong. Please try again." };
   }
 
-  // Send notification email
-  const dateLabel = formatDate(startSlot.date);
-  const timeLabel = formatTime(startSlot.start_time);
-  const typeLabel = data.bookingType === "full_day" ? "Full day" : "Half day (4 hours)";
+  // Build sessions list for emails
+  const sessions = startSlots.map((s) => ({
+    date: formatDate(s.date),
+    time: `${formatTime(s.start_time)} – ${formatTime(addHours(s.start_time, 4))}`,
+  }));
 
+  const sessionRowsHtml = sessions
+    .map(
+      (s, i) => `
+    ${i > 0 ? '<tr><td colspan="2" style="padding:2px 0;border-top:1px solid #f0f0f0"></td></tr>' : ""}
+    <tr>
+      <td style="padding:6px 0;color:#666;width:100px;vertical-align:top">${sessions.length > 1 ? `Session ${i + 1}` : "Session"}</td>
+      <td style="padding:6px 0">
+        <div style="font-weight:500">${s.date}</div>
+        <div style="color:#555;font-size:13px">${s.time}</div>
+      </td>
+    </tr>`
+    )
+    .join("");
+
+  const sessionListHtml = sessions
+    .map((s) => `<li style="padding:4px 0">${s.date} <span style="color:#555">— ${s.time}</span></li>`)
+    .join("");
+
+  // Notify Ollie
   await resend.emails.send({
     from: "CVZN Studios <bookings@cvznstudios.co.uk>",
     to: "ollie@cvznstudios.co.uk",
@@ -112,18 +134,8 @@ export async function submitBooking(data: {
       <div style="font-family:sans-serif;max-width:520px;color:#111">
         <h2 style="margin:0 0 16px;font-size:18px">New shoot request</h2>
         <table style="width:100%;border-collapse:collapse;font-size:14px">
-          <tr>
-            <td style="padding:8px 0;color:#666;width:120px">Date</td>
-            <td style="padding:8px 0;font-weight:500">${dateLabel}</td>
-          </tr>
-          <tr>
-            <td style="padding:8px 0;color:#666">Time</td>
-            <td style="padding:8px 0;font-weight:500">${timeLabel}</td>
-          </tr>
-          <tr>
-            <td style="padding:8px 0;color:#666">Duration</td>
-            <td style="padding:8px 0;font-weight:500">${typeLabel}</td>
-          </tr>
+          ${sessionRowsHtml}
+          <tr><td colspan="2" style="padding:8px 0;border-top:1px solid #eee"></td></tr>
           <tr>
             <td style="padding:8px 0;color:#666">Property</td>
             <td style="padding:8px 0;font-weight:500">${data.propertyAddress}</td>
@@ -150,7 +162,44 @@ export async function submitBooking(data: {
         </div>
       </div>
     `,
-  }).catch((err) => { console.error("Email send failed:", err); });
+  }).catch((err) => console.error("Email to Ollie failed:", err));
+
+  // Send receipt to client
+  await resend.emails.send({
+    from: "CVZN Studios <bookings@cvznstudios.co.uk>",
+    to: data.clientEmail,
+    subject: `Booking request received — ${data.propertyAddress}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;color:#111">
+        <h2 style="margin:0 0 8px;font-size:18px">Request received</h2>
+        <p style="margin:0 0 20px;color:#555;font-size:14px">
+          Hi ${data.clientName}, we've received your shoot request and will confirm within 24 hours.
+        </p>
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
+          <tr>
+            <td style="padding:8px 0;color:#666;width:120px;vertical-align:top">
+              ${sessions.length === 1 ? "Session" : "Sessions"}
+            </td>
+            <td style="padding:8px 0">
+              <ul style="margin:0;padding:0;list-style:none">${sessionListHtml}</ul>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#666">Property</td>
+            <td style="padding:8px 0;font-weight:500">${data.propertyAddress}</td>
+          </tr>
+          ${data.notes ? `
+          <tr>
+            <td style="padding:8px 0;color:#666;vertical-align:top">Notes</td>
+            <td style="padding:8px 0;color:#555">${data.notes}</td>
+          </tr>` : ""}
+        </table>
+        <p style="margin:24px 0 0;font-size:13px;color:#999">
+          Questions? Email <a href="mailto:ollie@cvznstudios.co.uk" style="color:#111">ollie@cvznstudios.co.uk</a>
+        </p>
+      </div>
+    `,
+  }).catch((err) => console.error("Receipt email to client failed:", err));
 
   return { success: true };
 }
