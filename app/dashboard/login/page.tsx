@@ -27,6 +27,22 @@ export default function LoginPage({
             />
           </div>
 
+          <div className="space-y-1.5">
+            <label className="text-sm text-gray-600">
+              Authenticator code <span className="text-gray-400">(6 digits)</span>
+            </label>
+            <input
+              type="text"
+              name="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="\d{6}"
+              maxLength={6}
+              className="w-full border border-gray-200 rounded-lg px-3.5 py-3 text-sm tracking-[0.3em] focus:outline-none focus:border-gray-900 transition-colors"
+              placeholder="123456"
+            />
+          </div>
+
           <button
             type="submit"
             className="w-full bg-gray-900 text-white py-3 rounded-lg text-sm font-medium hover:bg-gray-700 active:bg-gray-800 transition-colors touch-manipulation"
