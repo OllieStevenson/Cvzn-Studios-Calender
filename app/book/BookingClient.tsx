@@ -69,6 +69,9 @@ export default function BookingClient({ initialSlots }: Props) {
   const [ready, setReady] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const turnstileContainerRef = useRef<HTMLDivElement>(null);
+  const turnstileWidgetId = useRef<string | undefined>();
+  const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const [selectedSessions, setSelectedSessions] = useState<Slot[]>([]);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
@@ -96,22 +99,48 @@ export default function BookingClient({ initialSlots }: Props) {
     return () => cancelAnimationFrame(t)
   }, [])
 
-  // Load Turnstile script and expose callbacks
-  const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+  // Load Turnstile in explicit mode so we control when each widget renders
   useEffect(() => {
     if (!TURNSTILE_SITE_KEY) return;
-    (window as any).cvznTurnstileSuccess = (token: string) => setTurnstileToken(token);
-    (window as any).cvznTurnstileExpired = () => setTurnstileToken("");
     const script = document.createElement("script");
-    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
     script.async = true;
     document.head.appendChild(script);
-    return () => {
-      document.head.removeChild(script);
-      delete (window as any).cvznTurnstileSuccess;
-      delete (window as any).cvznTurnstileExpired;
-    };
+    return () => { if (document.head.contains(script)) document.head.removeChild(script); };
   }, [TURNSTILE_SITE_KEY]);
+
+  // Render/remove widget as sessions are added or cleared
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY) return;
+
+    if (selectedSessions.length === 0) {
+      if (turnstileWidgetId.current && (window as any).turnstile) {
+        (window as any).turnstile.remove(turnstileWidgetId.current);
+        turnstileWidgetId.current = undefined;
+      }
+      setTurnstileToken("");
+      return;
+    }
+
+    if (turnstileWidgetId.current) return; // already rendered
+
+    // Poll until the script is ready and the container div is in the DOM
+    const poll = setInterval(() => {
+      const ts = (window as any).turnstile;
+      const container = turnstileContainerRef.current;
+      if (ts && container) {
+        clearInterval(poll);
+        turnstileWidgetId.current = ts.render(container, {
+          sitekey: TURNSTILE_SITE_KEY,
+          callback: (token: string) => setTurnstileToken(token),
+          "expired-callback": () => setTurnstileToken(""),
+          theme: "dark",
+        });
+      }
+    }, 100);
+
+    return () => clearInterval(poll);
+  }, [selectedSessions.length, TURNSTILE_SITE_KEY]);
 
   // Cursor parallax — desktop only
   const bgRef = useRef<HTMLDivElement>(null);
@@ -503,15 +532,7 @@ export default function BookingClient({ initialSlots }: Props) {
 
                   {error && <p className="text-sm text-red-300">{error}</p>}
 
-                  {TURNSTILE_SITE_KEY && (
-                    <div
-                      className="cf-turnstile"
-                      data-sitekey={TURNSTILE_SITE_KEY}
-                      data-callback="cvznTurnstileSuccess"
-                      data-expired-callback="cvznTurnstileExpired"
-                      data-theme="dark"
-                    />
-                  )}
+                  {TURNSTILE_SITE_KEY && <div ref={turnstileContainerRef} />}
 
                   <button
                     type="submit"
