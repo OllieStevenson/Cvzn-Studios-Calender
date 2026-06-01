@@ -19,24 +19,30 @@
   }
 }
 
-/* Page transition overlay */
+/* Page transition overlay — radial iris */
 #pt-overlay {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: #0a0a0a;
-  opacity: 0;
+  background: #ffffff;
   pointer-events: none;
-  will-change: opacity;
+  clip-path: circle(0% at var(--cx, 50%) var(--cy, 50%));
+  will-change: clip-path;
 }
 #pt-overlay.pt-in {
-  opacity: 1;
   pointer-events: all;
-  transition: opacity 0.45s cubic-bezier(0.4, 0, 1, 1);
+  animation: pt-expand 0.32s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 #pt-overlay.pt-out {
-  opacity: 0;
   pointer-events: none;
-  transition: opacity 0.65s cubic-bezier(0, 0, 0.2, 1);
+  animation: pt-contract 0.38s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes pt-expand {
+  from { clip-path: circle(0% at var(--cx, 50%) var(--cy, 50%)); }
+  to   { clip-path: circle(150% at var(--cx, 50%) var(--cy, 50%)); }
+}
+@keyframes pt-contract {
+  from { clip-path: circle(150% at var(--cx, 50%) var(--cy, 50%)); }
+  to   { clip-path: circle(0% at var(--cx, 50%) var(--cy, 50%)); }
 }
 

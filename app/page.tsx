@@ -14,17 +14,19 @@ export default function Home() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  function navigateToBook() {
+  function navigateToBook(e: React.MouseEvent) {
     const overlay = document.getElementById('pt-overlay')
     if (!overlay) { router.push('/book'); return }
 
-    // Fade to black
+    // Set iris origin to where the user clicked
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    overlay.style.setProperty('--cx', `${rect.left + rect.width / 2}px`)
+    overlay.style.setProperty('--cy', `${rect.top + rect.height / 2}px`)
+
     overlay.classList.remove('pt-out')
-    overlay.getBoundingClientRect() // force reflow
     overlay.classList.add('pt-in')
 
-    // Navigate once the fade-in completes
-    setTimeout(() => router.push('/book'), 460)
+    setTimeout(() => router.push('/book'), 330)
   }
 
   return (
@@ -36,7 +38,7 @@ export default function Home() {
           <Image src="/icon.png" alt="" width={47} height={47} className="absolute" style={{ left: '20.7px', top: '56.45px' }} />
         </div>
         <button
-          onClick={navigateToBook}
+          onClick={(e) => navigateToBook(e)}
           className="text-[11px] tracking-[0.25em] uppercase border border-white/25 px-5 py-2.5 hover:bg-white hover:text-black transition-all duration-300"
         >
           Book a Shoot
@@ -79,7 +81,7 @@ export default function Home() {
           </p>
           <div style={{ animation: 'fadeUp 1s ease 0.7s both' }}>
             <button
-              onClick={navigateToBook}
+              onClick={(e) => navigateToBook(e)}
               className="px-10 py-4 bg-white text-black text-[11px] tracking-[0.3em] uppercase font-medium hover:bg-[#c8a96e] hover:text-white transition-all duration-500"
             >
               Book a Shoot
