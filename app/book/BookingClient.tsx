@@ -198,6 +198,9 @@ export default function BookingClient({ initialSlots }: Props) {
               <p className="text-white/60 text-sm mt-1.5 leading-relaxed">
                 We've sent a confirmation to your email and will be in touch within 24 hours.
               </p>
+              <p className="text-white/35 text-xs mt-1">
+                Can't see it? Check your junk or spam folder.
+              </p>
             </div>
             {sortedSessions.length > 0 && (
               <div className="text-left space-y-1.5 border-t border-white/10 pt-4">
