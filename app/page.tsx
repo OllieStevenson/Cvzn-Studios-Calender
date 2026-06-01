@@ -1,17 +1,26 @@
 'use client'
 
 import Image from 'next/image'
-import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function Home() {
   const [scrollY, setScrollY] = useState(0)
+  const router = useRouter()
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY)
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  function navigateToBook() {
+    if ('startViewTransition' in document) {
+      document.startViewTransition(() => router.push('/book'))
+    } else {
+      router.push('/book')
+    }
+  }
 
   return (
     <main className="bg-[#0a0a0a] text-white">
@@ -21,12 +30,12 @@ export default function Home() {
           <Image src="/logo.png" alt="CVZN Studios" height={160} width={280} className="h-[160px] w-auto brightness-0 invert" />
           <Image src="/icon.png" alt="" width={47} height={47} className="absolute" style={{ left: '20.7px', top: '56.45px' }} />
         </div>
-        <Link
-          href="/book"
+        <button
+          onClick={navigateToBook}
           className="text-[11px] tracking-[0.25em] uppercase border border-white/25 px-5 py-2.5 hover:bg-white hover:text-black transition-all duration-300"
         >
           Book a Shoot
-        </Link>
+        </button>
       </nav>
 
       {/* Full-screen hero */}
@@ -64,12 +73,12 @@ export default function Home() {
             Properties deserve to stand out.
           </p>
           <div style={{ animation: 'fadeUp 1s ease 0.7s both' }}>
-            <Link
-              href="/book"
+            <button
+              onClick={navigateToBook}
               className="px-10 py-4 bg-white text-black text-[11px] tracking-[0.3em] uppercase font-medium hover:bg-[#c8a96e] hover:text-white transition-all duration-500"
             >
               Book a Shoot
-            </Link>
+            </button>
           </div>
         </div>
       </section>
