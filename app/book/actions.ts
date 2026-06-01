@@ -3,12 +3,21 @@
 import { getSupabase, getSupabaseAdmin } from "@/lib/supabase";
 import { Resend } from "resend";
 import { headers } from "next/headers";
+import { z } from "zod";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const ALLOWED_SERVICES = ["Photography", "Videography", "Floor plans"];
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const bookingSchema = z.object({
+  slotIds: z.array(z.string().uuid()).min(1).max(10),
+  services: z
+    .array(z.enum(["Photography", "Videography", "Floor plans"]))
+    .min(1),
+  propertyAddress: z.string().trim().min(1).max(200),
+  clientName:      z.string().trim().min(1).max(100),
+  clientEmail:     z.string().email().max(200).toLowerCase(),
+  notes:           z.string().max(1000).optional(),
+  turnstileToken:  z.string(),
+});
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-GB", {
@@ -36,26 +45,20 @@ export async function submitBooking(data: {
   notes?: string;
   turnstileToken: string;
 }) {
-  // ── Input validation ────────────────────────────────────────────────
-  if (!data.slotIds.length || data.slotIds.length > 10)
-    return { error: "Invalid session selection." };
-  if (!data.slotIds.every((id) => UUID_RE.test(id)))
-    return { error: "Invalid slot selection." };
-  if (!data.services.length || !data.services.every((s) => ALLOWED_SERVICES.includes(s)))
-    return { error: "Invalid service selection." };
-  if (!data.propertyAddress.trim() || data.propertyAddress.length > 200)
-    return { error: "Invalid property address." };
-  if (!data.clientName.trim() || data.clientName.length > 100)
-    return { error: "Invalid name." };
-  if (!EMAIL_RE.test(data.clientEmail) || data.clientEmail.length > 200)
-    return { error: "Invalid email address." };
-  if (data.notes && data.notes.length > 1000)
-    return { error: "Notes must be under 1000 characters." };
+  // ── Input validation (Zod) ─────────────────────────────────────────
+  const parsed = bookingSchema.safeParse(data);
+  if (!parsed.success) return { error: "Invalid submission." };
+  const v = parsed.data;
+
+  // Strip HTML tags from notes so they can't inject into email templates
+  const sanitizedNotes = v.notes
+    ? v.notes.replace(/<[^>]*>/g, "").trim() || null
+    : null;
 
   // ── Get client IP ───────────────────────────────────────────────────
   const headersList = await headers();
   const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const email = data.clientEmail.trim().toLowerCase();
+  const email = v.clientEmail;
 
   // ── Rate limiting (admin — infrastructure concern, not user data) ───
   const admin = getSupabaseAdmin();
@@ -82,7 +85,7 @@ export async function submitBooking(data: {
 
   // ── Turnstile verification ──────────────────────────────────────────
   if (process.env.TURNSTILE_SECRET_KEY) {
-    if (!data.turnstileToken)
+    if (!v.turnstileToken)
       return { error: "Security check failed. Please try again." };
 
     const verifyRes = await fetch(
@@ -92,7 +95,7 @@ export async function submitBooking(data: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           secret: process.env.TURNSTILE_SECRET_KEY,
-          response: data.turnstileToken,
+          response: v.turnstileToken,
           remoteip: ip,
         }),
       }
@@ -114,7 +117,7 @@ export async function submitBooking(data: {
   const { data: startSlots, error: fetchError } = await supabase
     .from("slots")
     .select("id, date, start_time, status")
-    .in("id", data.slotIds)
+    .in("id", v.slotIds)
     .order("date")
     .order("start_time");
 
@@ -149,12 +152,12 @@ export async function submitBooking(data: {
   const { data: booking, error: bookingError } = await admin
     .from("bookings")
     .insert({
-      slot_id: data.slotIds[0],
-      services: data.services,
-      property_address: data.propertyAddress.trim(),
-      client_name: data.clientName.trim(),
+      slot_id: v.slotIds[0],
+      services: v.services,
+      property_address: v.propertyAddress,
+      client_name: v.clientName,
       client_email: email,
-      notes: data.notes?.trim() || null,
+      notes: sanitizedNotes,
       status: "pending",
       booking_type: "half_day",
     })
@@ -211,24 +214,24 @@ export async function submitBooking(data: {
           <tr><td colspan="2" style="padding:8px 0;border-top:1px solid #eee"></td></tr>
           <tr>
             <td style="padding:8px 0;color:#666">Services</td>
-            <td style="padding:8px 0;font-weight:500">${data.services.join(", ")}</td>
+            <td style="padding:8px 0;font-weight:500">${v.services.join(", ")}</td>
           </tr>
           <tr>
             <td style="padding:8px 0;color:#666">Property</td>
-            <td style="padding:8px 0;font-weight:500">${data.propertyAddress}</td>
+            <td style="padding:8px 0;font-weight:500">${v.propertyAddress}</td>
           </tr>
           <tr>
             <td style="padding:8px 0;color:#666">Client</td>
-            <td style="padding:8px 0">${data.clientName}</td>
+            <td style="padding:8px 0">${v.clientName}</td>
           </tr>
           <tr>
             <td style="padding:8px 0;color:#666">Email</td>
             <td style="padding:8px 0"><a href="mailto:${email}" style="color:#111">${email}</a></td>
           </tr>
-          ${data.notes ? `
+          ${sanitizedNotes ? `
           <tr>
             <td style="padding:8px 0;color:#666;vertical-align:top">Notes</td>
-            <td style="padding:8px 0;color:#555">${data.notes}</td>
+            <td style="padding:8px 0;color:#555">${sanitizedNotes}</td>
           </tr>` : ""}
         </table>
         <div style="margin-top:24px">
@@ -248,12 +251,12 @@ export async function submitBooking(data: {
     to: email,
     replyTo: "ollie@cvznstudios.co.uk",
     subject: `Booking request received — ${data.propertyAddress}`,
-    text: `Hi ${data.clientName},\n\nWe've received your shoot request and will confirm within 24 hours.\n\n${sessions.length === 1 ? "Session" : "Sessions"}:\n${sessionPlainText}\n\nServices: ${data.services.join(", ")}\nProperty: ${data.propertyAddress}${data.notes ? `\nNotes: ${data.notes}` : ""}\n\nQuestions? Reply to this email or contact ollie@cvznstudios.co.uk\n\nCVZN Studios`,
+    text: `Hi ${v.clientName},\n\nWe've received your shoot request and will confirm within 24 hours.\n\n${sessions.length === 1 ? "Session" : "Sessions"}:\n${sessionPlainText}\n\nServices: ${v.services.join(", ")}\nProperty: ${v.propertyAddress}${sanitizedNotes ? `\nNotes: ${sanitizedNotes}` : ""}\n\nQuestions? Reply to this email or contact ollie@cvznstudios.co.uk\n\nCVZN Studios`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;color:#111">
         <h2 style="margin:0 0 8px;font-size:18px">Request received</h2>
         <p style="margin:0 0 20px;color:#555;font-size:14px">
-          Hi ${data.clientName}, we've received your shoot request and will confirm within 24 hours.
+          Hi ${v.clientName}, we've received your shoot request and will confirm within 24 hours.
         </p>
         <table style="width:100%;border-collapse:collapse;font-size:14px">
           <tr>
@@ -266,16 +269,16 @@ export async function submitBooking(data: {
           </tr>
           <tr>
             <td style="padding:8px 0;color:#666">Services</td>
-            <td style="padding:8px 0;font-weight:500">${data.services.join(", ")}</td>
+            <td style="padding:8px 0;font-weight:500">${v.services.join(", ")}</td>
           </tr>
           <tr>
             <td style="padding:8px 0;color:#666">Property</td>
-            <td style="padding:8px 0;font-weight:500">${data.propertyAddress}</td>
+            <td style="padding:8px 0;font-weight:500">${v.propertyAddress}</td>
           </tr>
-          ${data.notes ? `
+          ${sanitizedNotes ? `
           <tr>
             <td style="padding:8px 0;color:#666;vertical-align:top">Notes</td>
-            <td style="padding:8px 0;color:#555">${data.notes}</td>
+            <td style="padding:8px 0;color:#555">${sanitizedNotes}</td>
           </tr>` : ""}
         </table>
         <p style="margin:24px 0 0;font-size:13px;color:#999">

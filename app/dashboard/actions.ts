@@ -5,6 +5,11 @@ import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { verifySessionToken } from "@/lib/session";
+import { z } from "zod";
+
+const uuidSchema      = z.string().uuid();
+const dateSchema      = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const timeSchema      = z.string().regex(/^\d{2}:00:00$/);
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -55,6 +60,7 @@ function identifySessionStarts(slots: { date: string; start_time: string }[]) {
 
 export async function approveBooking(bookingId: string) {
   await requireAdmin();
+  if (!uuidSchema.safeParse(bookingId).success) return;
   const admin = getSupabaseAdmin();
 
   // Fetch booking details before updating (needed for email)
@@ -127,6 +133,7 @@ export async function approveBooking(bookingId: string) {
 
 export async function declineBooking(bookingId: string) {
   await requireAdmin();
+  if (!uuidSchema.safeParse(bookingId).success) return;
   const admin = getSupabaseAdmin();
 
   // Fetch booking details before updating (needed for email)
@@ -168,6 +175,9 @@ export async function declineBooking(bookingId: string) {
 
 export async function addSlots(date: string, times: string[]) {
   await requireAdmin();
+  if (!dateSchema.safeParse(date).success) return { error: "Invalid date." };
+  if (!times.length || !times.every(t => timeSchema.safeParse(t).success))
+    return { error: "Invalid times." };
   const admin = getSupabaseAdmin();
   const rows = times.map((t) => ({ date, start_time: t, status: "open" }));
   const { error } = await admin.from("slots").insert(rows);
@@ -178,6 +188,7 @@ export async function addSlots(date: string, times: string[]) {
 
 export async function deleteSlot(slotId: string) {
   await requireAdmin();
+  if (!uuidSchema.safeParse(slotId).success) return;
   const admin = getSupabaseAdmin();
   await admin.from("slots").delete().eq("id", slotId).eq("status", "open");
   revalidatePath("/dashboard");
