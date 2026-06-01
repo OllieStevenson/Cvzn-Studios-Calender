@@ -170,12 +170,15 @@ export async function submitBooking(data: {
     `,
   }).catch((err) => console.error("Email to Ollie failed:", err));
 
+  const sessionPlainText = sessions.map((s) => `  • ${s.date} — ${s.time}`).join("\n");
+
   // Send receipt to client
   await resend.emails.send({
     from: "CVZN Studios <bookings@cvznstudios.co.uk>",
     to: data.clientEmail,
     replyTo: "ollie@cvznstudios.co.uk",
     subject: `Booking request received — ${data.propertyAddress}`,
+    text: `Hi ${data.clientName},\n\nWe've received your shoot request and will confirm within 24 hours.\n\n${sessions.length === 1 ? "Session" : "Sessions"}:\n${sessionPlainText}\n\nServices: ${data.services.join(", ")}\nProperty: ${data.propertyAddress}${data.notes ? `\nNotes: ${data.notes}` : ""}\n\nQuestions? Reply to this email or contact ollie@cvznstudios.co.uk\n\nCVZN Studios`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;color:#111">
         <h2 style="margin:0 0 8px;font-size:18px">Request received</h2>

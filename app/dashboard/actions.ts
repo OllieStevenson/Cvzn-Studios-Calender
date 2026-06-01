@@ -73,11 +73,16 @@ export async function approveBooking(bookingId: string) {
       )
       .join("");
 
+    const sessionPlainText = sessions
+      .map((s) => `  • ${formatDate(s.date)} — ${formatTime(s.start_time)}–${formatTime(addHours(s.start_time, 4))}`)
+      .join("\n");
+
     await resend.emails.send({
       from: "CVZN Studios <bookings@cvznstudios.co.uk>",
       to: booking.client_email,
       replyTo: "ollie@cvznstudios.co.uk",
       subject: `Booking confirmed — ${booking.property_address}`,
+      text: `Hi ${booking.client_name},\n\nYour shoot has been confirmed.\n\n${sessions.length === 1 ? "Session" : "Sessions"}:\n${sessionPlainText}\n\nProperty: ${booking.property_address}\n\nQuestions? Reply to this email or contact ollie@cvznstudios.co.uk\n\nCVZN Studios`,
       html: `
         <div style="font-family:sans-serif;max-width:520px;color:#111">
           <h2 style="margin:0 0 8px;font-size:18px">Your shoot is confirmed ✓</h2>
@@ -129,6 +134,7 @@ export async function declineBooking(bookingId: string) {
       to: booking.client_email,
       replyTo: "ollie@cvznstudios.co.uk",
       subject: `Your booking request — ${booking.property_address}`,
+      text: `Hi ${booking.client_name},\n\nUnfortunately we're unable to confirm your shoot request for ${booking.property_address} at this time.\n\nIf you'd like to rebook or discuss alternative dates, please reply to this email or contact ollie@cvznstudios.co.uk\n\nCVZN Studios`,
       html: `
         <div style="font-family:sans-serif;max-width:520px;color:#111">
           <h2 style="margin:0 0 8px;font-size:18px">Booking request update</h2>
