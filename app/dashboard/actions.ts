@@ -3,8 +3,16 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+async function requireAdmin() {
+  const cookieStore = await cookies();
+  if (cookieStore.get("dashboard_auth")?.value !== process.env.ADMIN_PASSWORD) {
+    throw new Error("Unauthorized");
+  }
+}
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-GB", {
@@ -44,6 +52,7 @@ function identifySessionStarts(slots: { date: string; start_time: string }[]) {
 }
 
 export async function approveBooking(bookingId: string) {
+  await requireAdmin();
   const admin = getSupabaseAdmin();
 
   // Fetch booking details before updating (needed for email)
@@ -115,6 +124,7 @@ export async function approveBooking(bookingId: string) {
 }
 
 export async function declineBooking(bookingId: string) {
+  await requireAdmin();
   const admin = getSupabaseAdmin();
 
   // Fetch booking details before updating (needed for email)
@@ -155,6 +165,7 @@ export async function declineBooking(bookingId: string) {
 }
 
 export async function addSlots(date: string, times: string[]) {
+  await requireAdmin();
   const admin = getSupabaseAdmin();
   const rows = times.map((t) => ({ date, start_time: t, status: "open" }));
   const { error } = await admin.from("slots").insert(rows);
@@ -164,6 +175,7 @@ export async function addSlots(date: string, times: string[]) {
 }
 
 export async function deleteSlot(slotId: string) {
+  await requireAdmin();
   const admin = getSupabaseAdmin();
   await admin.from("slots").delete().eq("id", slotId).eq("status", "open");
   revalidatePath("/dashboard");
