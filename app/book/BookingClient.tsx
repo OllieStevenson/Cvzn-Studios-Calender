@@ -215,7 +215,7 @@ export default function BookingClient({ initialSlots }: Props) {
 
       {/* Header */}
       <header className="relative z-10 px-4 sm:px-8 py-5 flex items-center justify-between">
-        <div className="relative inline-block" style={{ height: "160px", width: "280px" }}>
+        <div className="relative inline-block" style={{ height: "160px", width: "280px", viewTransitionName: "site-logo" }}>
           <Image src="/logo.png" alt="CVZN Studios" height={160} width={280} className="h-[160px] w-auto brightness-0 invert" />
           <Image src="/icon.png" alt="" width={47} height={47} className="absolute" style={{ left: "20.7px", top: "56.45px" }} />
         </div>

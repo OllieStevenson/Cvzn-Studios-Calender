@@ -26,7 +26,7 @@ export default function Home() {
     <main className="bg-[#0a0a0a] text-white">
       {/* Nav */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-5">
-        <div className="relative inline-block" style={{ height: '160px', width: '280px' }}>
+        <div className="relative inline-block" style={{ height: '160px', width: '280px', viewTransitionName: 'site-logo' }}>
           <Image src="/logo.png" alt="CVZN Studios" height={160} width={280} className="h-[160px] w-auto brightness-0 invert" />
           <Image src="/icon.png" alt="" width={47} height={47} className="absolute" style={{ left: '20.7px', top: '56.45px' }} />
         </div>
