@@ -1,9 +1,13 @@
 "use server";
 
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabase, getSupabaseAdmin } from "@/lib/supabase";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+const ALLOWED_SERVICES = ["Photography", "Videography", "Floor plans"];
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-GB", {
@@ -30,12 +34,28 @@ export async function submitBooking(data: {
   clientEmail: string;
   notes?: string;
 }) {
-  const admin = getSupabaseAdmin();
+  // ── Input validation ────────────────────────────────────────────────
+  if (!data.slotIds.length || data.slotIds.length > 10)
+    return { error: "Invalid session selection." };
+  if (!data.slotIds.every((id) => UUID_RE.test(id)))
+    return { error: "Invalid slot selection." };
+  if (!data.services.length || !data.services.every((s) => ALLOWED_SERVICES.includes(s)))
+    return { error: "Invalid service selection." };
+  if (!data.propertyAddress.trim() || data.propertyAddress.length > 200)
+    return { error: "Invalid property address." };
+  if (!data.clientName.trim() || data.clientName.length > 100)
+    return { error: "Invalid name." };
+  if (!EMAIL_RE.test(data.clientEmail) || data.clientEmail.length > 200)
+    return { error: "Invalid email address." };
+  if (data.notes && data.notes.length > 1000)
+    return { error: "Notes must be under 1000 characters." };
 
-  // Fetch all selected start slots
-  const { data: startSlots, error: fetchError } = await admin
+  // ── Reads via anon client (RLS enforced) ───────────────────────────
+  const supabase = getSupabase();
+
+  const { data: startSlots, error: fetchError } = await supabase
     .from("slots")
-    .select("*")
+    .select("id, date, start_time, status")
     .in("id", data.slotIds)
     .order("date")
     .order("start_time");
@@ -48,14 +68,13 @@ export async function submitBooking(data: {
     return { error: "One or more of your selected slots has just been taken. Please review your selection." };
   }
 
-  // For each session, find and collect the 4-hour block to reserve
   const allSlotIdsToBlock: string[] = [];
 
   for (const startSlot of startSlots) {
     const startHour = parseInt(startSlot.start_time.split(":")[0]);
     const endTime = `${String(startHour + 4).padStart(2, "0")}:00:00`;
 
-    const { data: block } = await admin
+    const { data: block } = await supabase
       .from("slots")
       .select("id")
       .eq("date", startSlot.date)
@@ -71,16 +90,18 @@ export async function submitBooking(data: {
     return { error: "No available slots found." };
   }
 
-  // Create one booking record (primary slot = first selected)
+  // ── Writes via admin client (elevated scope, post-validation only) ──
+  const admin = getSupabaseAdmin();
+
   const { data: booking, error: bookingError } = await admin
     .from("bookings")
     .insert({
       slot_id: data.slotIds[0],
       services: data.services,
-      property_address: data.propertyAddress,
-      client_name: data.clientName,
-      client_email: data.clientEmail,
-      notes: data.notes || null,
+      property_address: data.propertyAddress.trim(),
+      client_name: data.clientName.trim(),
+      client_email: data.clientEmail.trim().toLowerCase(),
+      notes: data.notes?.trim() || null,
       status: "pending",
       booking_type: "half_day",
     })
@@ -91,7 +112,6 @@ export async function submitBooking(data: {
     return { error: "Something went wrong. Please try again." };
   }
 
-  // Mark all slots as pending, linked to this booking
   const { error: updateError } = await admin
     .from("slots")
     .update({ status: "pending", booking_id: booking.id })
@@ -103,7 +123,7 @@ export async function submitBooking(data: {
     return { error: "Something went wrong. Please try again." };
   }
 
-  // Build sessions list for emails
+  // ── Emails ──────────────────────────────────────────────────────────
   const sessions = startSlots.map((s) => ({
     date: formatDate(s.date),
     time: `${formatTime(s.start_time)} – ${formatTime(addHours(s.start_time, 4))}`,
@@ -127,7 +147,6 @@ export async function submitBooking(data: {
     .map((s) => `<li style="padding:4px 0">${s.date} <span style="color:#555">— ${s.time}</span></li>`)
     .join("");
 
-  // Notify Ollie
   await resend.emails.send({
     from: "CVZN Studios <bookings@cvznstudios.co.uk>",
     to: "ollie@cvznstudios.co.uk",
@@ -172,7 +191,6 @@ export async function submitBooking(data: {
 
   const sessionPlainText = sessions.map((s) => `  • ${s.date} — ${s.time}`).join("\n");
 
-  // Send receipt to client
   await resend.emails.send({
     from: "CVZN Studios <bookings@cvznstudios.co.uk>",
     to: data.clientEmail,
