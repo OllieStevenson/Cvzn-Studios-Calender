@@ -174,6 +174,7 @@ export async function submitBooking(data: {
   await resend.emails.send({
     from: "CVZN Studios <bookings@cvznstudios.co.uk>",
     to: data.clientEmail,
+    replyTo: "ollie@cvznstudios.co.uk",
     subject: `Booking request received — ${data.propertyAddress}`,
     html: `
       <div style="font-family:sans-serif;max-width:520px;color:#111">

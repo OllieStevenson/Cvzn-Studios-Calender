@@ -76,6 +76,7 @@ export async function approveBooking(bookingId: string) {
     await resend.emails.send({
       from: "CVZN Studios <bookings@cvznstudios.co.uk>",
       to: booking.client_email,
+      replyTo: "ollie@cvznstudios.co.uk",
       subject: `Booking confirmed — ${booking.property_address}`,
       html: `
         <div style="font-family:sans-serif;max-width:520px;color:#111">
@@ -126,6 +127,7 @@ export async function declineBooking(bookingId: string) {
     await resend.emails.send({
       from: "CVZN Studios <bookings@cvznstudios.co.uk>",
       to: booking.client_email,
+      replyTo: "ollie@cvznstudios.co.uk",
       subject: `Your booking request — ${booking.property_address}`,
       html: `
         <div style="font-family:sans-serif;max-width:520px;color:#111">
