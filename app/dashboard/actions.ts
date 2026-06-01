@@ -4,12 +4,14 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { verifySessionToken } from "@/lib/session";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 async function requireAdmin() {
   const cookieStore = await cookies();
-  if (cookieStore.get("dashboard_auth")?.value !== process.env.ADMIN_PASSWORD) {
+  const auth = cookieStore.get("dashboard_auth");
+  if (!auth?.value || !verifySessionToken(auth.value)) {
     throw new Error("Unauthorized");
   }
 }

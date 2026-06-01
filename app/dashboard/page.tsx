@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { verifySessionToken } from "@/lib/session";
 import DashboardClient from "./DashboardClient";
 
 export const revalidate = 0;
@@ -27,7 +28,7 @@ function identifySessionStarts(slots: { date: string; start_time: string }[]) {
 export default async function DashboardPage() {
   const cookieStore = await cookies();
   const auth = cookieStore.get("dashboard_auth");
-  if (auth?.value !== process.env.ADMIN_PASSWORD) {
+  if (!auth?.value || !verifySessionToken(auth.value)) {
     redirect("/dashboard/login");
   }
 
