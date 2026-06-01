@@ -16,14 +16,11 @@ export default function Home() {
   return (
     <main className="bg-[#0a0a0a] text-white">
       {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-7">
-        <Image
-          src="/logo-light.png"
-          alt="CVZN Studios"
-          width={600}
-          height={144}
-          className="h-8 w-auto"
-        />
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-5">
+        <div className="relative inline-block" style={{ height: '160px', width: '280px' }}>
+          <Image src="/logo.png" alt="CVZN Studios" height={160} width={280} className="h-[160px] w-auto brightness-0 invert" />
+          <Image src="/icon.png" alt="" width={47} height={47} className="absolute" style={{ left: '20.7px', top: '56.45px' }} />
+        </div>
         <Link
           href="/book"
           className="text-[11px] tracking-[0.25em] uppercase border border-white/25 px-5 py-2.5 hover:bg-white hover:text-black transition-all duration-300"
