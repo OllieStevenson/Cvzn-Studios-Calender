@@ -66,6 +66,7 @@ export default function BookingClient({ initialSlots }: Props) {
 
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
+  const [ready, setReady] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSessions, setSelectedSessions] = useState<Slot[]>([]);
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
@@ -78,6 +79,12 @@ export default function BookingClient({ initialSlots }: Props) {
     clientEmail: "",
     notes: "",
   });
+
+  // Trigger card fade-in after first paint
+  useEffect(() => {
+    const t = requestAnimationFrame(() => setReady(true))
+    return () => cancelAnimationFrame(t)
+  }, [])
 
   // Cursor parallax — desktop only
   const bgRef = useRef<HTMLDivElement>(null);
@@ -215,14 +222,20 @@ export default function BookingClient({ initialSlots }: Props) {
 
       {/* Header */}
       <header className="relative z-10 px-4 sm:px-8 py-5 flex items-center justify-between">
-        <div className="relative inline-block" style={{ height: "160px", width: "280px", viewTransitionName: "site-logo" }}>
+        <div className="relative inline-block" style={{ height: "160px", width: "280px" }}>
           <Image src="/logo.png" alt="CVZN Studios" height={160} width={280} className="h-[160px] w-auto brightness-0 invert" />
           <Image src="/icon.png" alt="" width={47} height={47} className="absolute" style={{ left: "20.7px", top: "56.45px" }} />
         </div>
         <span className="hidden sm:block text-sm text-white/60">Visual Property Marketing</span>
       </header>
 
-      <div className="relative z-10 flex justify-center px-4 pb-12 pt-4">
+      <div
+        className="relative z-10 flex justify-center px-4 pb-12 pt-4"
+        style={{
+          opacity: ready ? 1 : 0,
+          transition: 'opacity 0.7s ease-out',
+        }}
+      >
         <div className="w-full max-w-lg">
           <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl shadow-2xl overflow-hidden">
 

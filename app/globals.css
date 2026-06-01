@@ -19,30 +19,4 @@
   }
 }
 
-/* Page transition */
-@media (prefers-reduced-motion: no-preference) {
-  /* Logo is a named shared element — stays pinned, no animation */
-  ::view-transition-old(site-logo),
-  ::view-transition-new(site-logo) {
-    animation: none;
-    mix-blend-mode: normal;
-  }
-
-  /* Homepage content fades out quickly */
-  ::view-transition-old(root) {
-    animation: 280ms ease-in both vt-out;
-  }
-
-  /* Booking page fades in slowly */
-  ::view-transition-new(root) {
-    animation: 750ms ease-out both vt-in;
-  }
-}
-
-@keyframes vt-out {
-  to { opacity: 0; }
-}
-@keyframes vt-in {
-  from { opacity: 0; }
-}
 

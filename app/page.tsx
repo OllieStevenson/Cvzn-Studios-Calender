@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 
 export default function Home() {
   const [scrollY, setScrollY] = useState(0)
+  const [leaving, setLeaving] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -15,31 +16,35 @@ export default function Home() {
   }, [])
 
   function navigateToBook() {
-    if ('startViewTransition' in document) {
-      document.startViewTransition(() => router.push('/book'))
-    } else {
-      router.push('/book')
-    }
+    setLeaving(true)
+    setTimeout(() => router.push('/book'), 320)
   }
 
   return (
     <main className="bg-[#0a0a0a] text-white">
-      {/* Nav */}
+      {/* Nav — logo never fades */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-5">
-        <div className="relative inline-block" style={{ height: '160px', width: '280px', viewTransitionName: 'site-logo' }}>
+        <div className="relative inline-block" style={{ height: '160px', width: '280px' }}>
           <Image src="/logo.png" alt="CVZN Studios" height={160} width={280} className="h-[160px] w-auto brightness-0 invert" />
           <Image src="/icon.png" alt="" width={47} height={47} className="absolute" style={{ left: '20.7px', top: '56.45px' }} />
         </div>
         <button
           onClick={navigateToBook}
-          className="text-[11px] tracking-[0.25em] uppercase border border-white/25 px-5 py-2.5 hover:bg-white hover:text-black transition-all duration-300"
+          className="text-[11px] tracking-[0.25em] uppercase border border-white/25 px-5 py-2.5 hover:bg-white hover:text-black transition-colors duration-300"
+          style={{
+            opacity: leaving ? 0 : 1,
+            transition: leaving ? 'opacity 0.2s ease' : undefined,
+            pointerEvents: leaving ? 'none' : 'auto',
+          }}
         >
           Book a Shoot
         </button>
       </nav>
 
-      {/* Full-screen hero */}
+      {/* Hero */}
       <section className="relative h-screen overflow-hidden">
+
+        {/* Background — never fades, persists into booking page */}
         <div
           className="absolute inset-[-10%]"
           style={{ transform: `translateY(${scrollY * 0.3}px)` }}
@@ -55,7 +60,14 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/50 to-black/85" />
         </div>
 
-        <div className="relative h-full flex flex-col items-center justify-center text-center px-8">
+        {/* Text content — fades out on navigate */}
+        <div
+          className="relative h-full flex flex-col items-center justify-center text-center px-8"
+          style={{
+            opacity: leaving ? 0 : 1,
+            transition: leaving ? 'opacity 0.28s ease-in' : undefined,
+          }}
+        >
           <h1
             className="font-extralight tracking-[0.08em] uppercase leading-[1.05] mb-6"
             style={{
@@ -72,15 +84,15 @@ export default function Home() {
           >
             Properties deserve to stand out.
           </p>
-          <div style={{ animation: 'fadeUp 1s ease 0.7s both' }}>
-            <button
-              onClick={navigateToBook}
-              className="px-10 py-4 bg-white text-black text-[11px] tracking-[0.3em] uppercase font-medium hover:bg-[#c8a96e] hover:text-white transition-all duration-500"
-            >
-              Book a Shoot
-            </button>
-          </div>
+          <button
+            onClick={navigateToBook}
+            className="px-10 py-4 bg-white text-black text-[11px] tracking-[0.3em] uppercase font-medium hover:bg-[#c8a96e] hover:text-white transition-colors duration-500"
+            style={{ animation: 'fadeUp 1s ease 0.7s both' }}
+          >
+            Book a Shoot
+          </button>
         </div>
+
       </section>
     </main>
   )
