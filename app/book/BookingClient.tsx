@@ -69,6 +69,7 @@ export default function BookingClient({ initialSlots }: Props) {
   const [ready, setReady] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSessions, setSelectedSessions] = useState<Slot[]>([]);
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +80,14 @@ export default function BookingClient({ initialSlots }: Props) {
     clientEmail: "",
     notes: "",
   });
+
+  const SERVICES = ["Photography", "Videography", "Floor plans"];
+
+  function toggleService(service: string) {
+    setSelectedServices((prev) =>
+      prev.includes(service) ? prev.filter((s) => s !== service) : [...prev, service]
+    );
+  }
 
   // Trigger card fade-in after first paint
   useEffect(() => {
@@ -147,6 +156,7 @@ export default function BookingClient({ initialSlots }: Props) {
     startTransition(async () => {
       const result = await submitBooking({
         slotIds: selectedSessions.map((s) => s.id),
+        services: selectedServices,
         ...form,
       });
       if (result.error) {
@@ -391,7 +401,35 @@ export default function BookingClient({ initialSlots }: Props) {
               {/* Booking form */}
               {selectedSessions.length > 0 && (
                 <form onSubmit={handleSubmit} className="space-y-4 border-t border-white/10 pt-5">
-                  <h2 className="font-medium text-white text-sm">Your details</h2>
+
+                  {/* Service selection */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-white/60">
+                      Services <span className="text-white/30">(select all that apply)</span>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {SERVICES.map((service) => {
+                        const active = selectedServices.includes(service);
+                        return (
+                          <button
+                            key={service}
+                            type="button"
+                            onClick={() => toggleService(service)}
+                            className={[
+                              "px-4 py-2 rounded-lg text-sm border transition-all duration-200 touch-manipulation",
+                              active
+                                ? "bg-white/15 border-white/50 text-white"
+                                : "border-white/15 text-white/40 hover:border-white/30 hover:text-white/60",
+                            ].join(" ")}
+                          >
+                            {service}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <h2 className="font-medium text-white text-sm pt-1">Your details</h2>
 
                   <div className="space-y-1.5">
                     <label className="text-xs text-white/60">Property address</label>
@@ -445,7 +483,7 @@ export default function BookingClient({ initialSlots }: Props) {
 
                   <button
                     type="submit"
-                    disabled={isPending}
+                    disabled={isPending || selectedServices.length === 0}
                     className="w-full bg-white text-gray-900 py-3 rounded-lg text-sm font-semibold hover:bg-white/90 active:bg-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                   >
                     {isPending
@@ -454,6 +492,9 @@ export default function BookingClient({ initialSlots }: Props) {
                       ? "Request this slot"
                       : `Request ${selectedSessions.length} sessions`}
                   </button>
+                  {selectedServices.length === 0 && (
+                    <p className="text-xs text-white/40 text-center -mt-1">Select at least one service above</p>
+                  )}
 
                   <p className="text-xs text-white/30 text-center pb-1">
                     We'll confirm your booking by email within 24 hours.

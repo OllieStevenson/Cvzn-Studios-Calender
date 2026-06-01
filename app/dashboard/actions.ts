@@ -110,8 +110,39 @@ export async function approveBooking(bookingId: string) {
 
 export async function declineBooking(bookingId: string) {
   const admin = getSupabaseAdmin();
+
+  // Fetch booking details before updating (needed for email)
+  const { data: booking } = await admin
+    .from("bookings")
+    .select("client_email, client_name, property_address")
+    .eq("id", bookingId)
+    .single();
+
   await admin.from("slots").update({ status: "open", booking_id: null }).eq("booking_id", bookingId);
   await admin.from("bookings").update({ status: "declined" }).eq("id", bookingId);
+
+  // Notify client
+  if (booking) {
+    await resend.emails.send({
+      from: "CVZN Studios <bookings@cvznstudios.co.uk>",
+      to: booking.client_email,
+      subject: `Your booking request — ${booking.property_address}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:520px;color:#111">
+          <h2 style="margin:0 0 8px;font-size:18px">Booking request update</h2>
+          <p style="margin:0 0 16px;color:#555;font-size:14px">
+            Hi ${booking.client_name}, unfortunately we're unable to confirm your shoot request
+            for <strong>${booking.property_address}</strong> at this time.
+          </p>
+          <p style="margin:0;color:#555;font-size:14px">
+            If you'd like to rebook or discuss alternative dates, please get in touch at
+            <a href="mailto:ollie@cvznstudios.co.uk" style="color:#111">ollie@cvznstudios.co.uk</a>
+          </p>
+        </div>
+      `,
+    }).catch((err) => console.error("Decline email failed:", err));
+  }
+
   revalidatePath("/dashboard");
 }
 

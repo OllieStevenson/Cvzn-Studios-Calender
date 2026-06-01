@@ -19,6 +19,7 @@ interface Session {
 interface Booking {
   id: string;
   slot_id: string;
+  services: string[];
   property_address: string;
   client_name: string;
   client_email: string;
@@ -293,6 +294,13 @@ function BookingCard({
       </div>
 
       <div className="text-sm text-gray-600 space-y-0.5">
+        {b.services?.length > 0 && (
+          <p className="flex flex-wrap gap-1 mb-1">
+            {b.services.map((s) => (
+              <span key={s} className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{s}</span>
+            ))}
+          </p>
+        )}
         <p className="truncate">
           {b.client_name} ·{" "}
           <a href={`mailto:${b.client_email}`} className="text-gray-900 underline underline-offset-2">

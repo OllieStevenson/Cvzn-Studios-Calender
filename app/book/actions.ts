@@ -24,6 +24,7 @@ function addHours(time: string, hours: number): string {
 
 export async function submitBooking(data: {
   slotIds: string[];
+  services: string[];
   propertyAddress: string;
   clientName: string;
   clientEmail: string;
@@ -75,6 +76,7 @@ export async function submitBooking(data: {
     .from("bookings")
     .insert({
       slot_id: data.slotIds[0],
+      services: data.services,
       property_address: data.propertyAddress,
       client_name: data.clientName,
       client_email: data.clientEmail,
@@ -137,6 +139,10 @@ export async function submitBooking(data: {
           ${sessionRowsHtml}
           <tr><td colspan="2" style="padding:8px 0;border-top:1px solid #eee"></td></tr>
           <tr>
+            <td style="padding:8px 0;color:#666">Services</td>
+            <td style="padding:8px 0;font-weight:500">${data.services.join(", ")}</td>
+          </tr>
+          <tr>
             <td style="padding:8px 0;color:#666">Property</td>
             <td style="padding:8px 0;font-weight:500">${data.propertyAddress}</td>
           </tr>
@@ -183,6 +189,10 @@ export async function submitBooking(data: {
             <td style="padding:8px 0">
               <ul style="margin:0;padding:0;list-style:none">${sessionListHtml}</ul>
             </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;color:#666">Services</td>
+            <td style="padding:8px 0;font-weight:500">${data.services.join(", ")}</td>
           </tr>
           <tr>
             <td style="padding:8px 0;color:#666">Property</td>
