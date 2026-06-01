@@ -5,6 +5,7 @@ import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { verifySessionToken } from "@/lib/session";
+import { escapeHtml } from "@/lib/escape";
 import { z } from "zod";
 
 const uuidSchema      = z.string().uuid();
@@ -94,6 +95,9 @@ export async function approveBooking(bookingId: string) {
       .map((s) => `  • ${formatDate(s.date)} — ${formatTime(s.start_time)}–${formatTime(addHours(s.start_time, 4))}`)
       .join("\n");
 
+    const safeName = escapeHtml(booking.client_name);
+    const safeAddress = escapeHtml(booking.property_address);
+
     await resend.emails.send({
       from: "CVZN Studios <bookings@cvznstudios.co.uk>",
       to: booking.client_email,
@@ -104,7 +108,7 @@ export async function approveBooking(bookingId: string) {
         <div style="font-family:sans-serif;max-width:520px;color:#111">
           <h2 style="margin:0 0 8px;font-size:18px">Your shoot is confirmed ✓</h2>
           <p style="margin:0 0 20px;color:#555;font-size:14px">
-            Hi ${booking.client_name}, your shoot has been confirmed. We look forward to seeing you.
+            Hi ${safeName}, your shoot has been confirmed. We look forward to seeing you.
           </p>
           <table style="width:100%;border-collapse:collapse;font-size:14px">
             <tr>
@@ -117,7 +121,7 @@ export async function approveBooking(bookingId: string) {
             </tr>
             <tr>
               <td style="padding:8px 0;color:#666">Property</td>
-              <td style="padding:8px 0;font-weight:500">${booking.property_address}</td>
+              <td style="padding:8px 0;font-weight:500">${safeAddress}</td>
             </tr>
           </table>
           <p style="margin:24px 0 0;font-size:13px;color:#999">
@@ -148,6 +152,9 @@ export async function declineBooking(bookingId: string) {
 
   // Notify client
   if (booking) {
+    const safeName = escapeHtml(booking.client_name);
+    const safeAddress = escapeHtml(booking.property_address);
+
     await resend.emails.send({
       from: "CVZN Studios <bookings@cvznstudios.co.uk>",
       to: booking.client_email,
@@ -158,8 +165,8 @@ export async function declineBooking(bookingId: string) {
         <div style="font-family:sans-serif;max-width:520px;color:#111">
           <h2 style="margin:0 0 8px;font-size:18px">Booking request update</h2>
           <p style="margin:0 0 16px;color:#555;font-size:14px">
-            Hi ${booking.client_name}, unfortunately we're unable to confirm your shoot request
-            for <strong>${booking.property_address}</strong> at this time.
+            Hi ${safeName}, unfortunately we're unable to confirm your shoot request
+            for <strong>${safeAddress}</strong> at this time.
           </p>
           <p style="margin:0;color:#555;font-size:14px">
             If you'd like to rebook or discuss alternative dates, please get in touch at

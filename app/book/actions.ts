@@ -4,6 +4,7 @@ import { getSupabase, getSupabaseAdmin } from "@/lib/supabase";
 import { Resend } from "resend";
 import { headers } from "next/headers";
 import { z } from "zod";
+import { escapeHtml } from "@/lib/escape";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -59,6 +60,13 @@ export async function submitBooking(data: {
   const headersList = await headers();
   const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   const email = v.clientEmail;
+
+  // HTML-escaped variants for use inside email HTML bodies
+  const safeAddress = escapeHtml(v.propertyAddress);
+  const safeName    = escapeHtml(v.clientName);
+  const safeEmail   = escapeHtml(email);
+  const safeNotes   = sanitizedNotes ? escapeHtml(sanitizedNotes) : null;
+  const safeServices = v.services.map(escapeHtml).join(", ");
 
   // ── Rate limiting (admin — infrastructure concern, not user data) ───
   const admin = getSupabaseAdmin();
@@ -214,24 +222,24 @@ export async function submitBooking(data: {
           <tr><td colspan="2" style="padding:8px 0;border-top:1px solid #eee"></td></tr>
           <tr>
             <td style="padding:8px 0;color:#666">Services</td>
-            <td style="padding:8px 0;font-weight:500">${v.services.join(", ")}</td>
+            <td style="padding:8px 0;font-weight:500">${safeServices}</td>
           </tr>
           <tr>
             <td style="padding:8px 0;color:#666">Property</td>
-            <td style="padding:8px 0;font-weight:500">${v.propertyAddress}</td>
+            <td style="padding:8px 0;font-weight:500">${safeAddress}</td>
           </tr>
           <tr>
             <td style="padding:8px 0;color:#666">Client</td>
-            <td style="padding:8px 0">${v.clientName}</td>
+            <td style="padding:8px 0">${safeName}</td>
           </tr>
           <tr>
             <td style="padding:8px 0;color:#666">Email</td>
-            <td style="padding:8px 0"><a href="mailto:${email}" style="color:#111">${email}</a></td>
+            <td style="padding:8px 0"><a href="mailto:${safeEmail}" style="color:#111">${safeEmail}</a></td>
           </tr>
-          ${sanitizedNotes ? `
+          ${safeNotes ? `
           <tr>
             <td style="padding:8px 0;color:#666;vertical-align:top">Notes</td>
-            <td style="padding:8px 0;color:#555">${sanitizedNotes}</td>
+            <td style="padding:8px 0;color:#555">${safeNotes}</td>
           </tr>` : ""}
         </table>
         <div style="margin-top:24px">
@@ -256,7 +264,7 @@ export async function submitBooking(data: {
       <div style="font-family:sans-serif;max-width:520px;color:#111">
         <h2 style="margin:0 0 8px;font-size:18px">Request received</h2>
         <p style="margin:0 0 20px;color:#555;font-size:14px">
-          Hi ${v.clientName}, we've received your shoot request and will confirm within 24 hours.
+          Hi ${safeName}, we've received your shoot request and will confirm within 24 hours.
         </p>
         <table style="width:100%;border-collapse:collapse;font-size:14px">
           <tr>
@@ -269,16 +277,16 @@ export async function submitBooking(data: {
           </tr>
           <tr>
             <td style="padding:8px 0;color:#666">Services</td>
-            <td style="padding:8px 0;font-weight:500">${v.services.join(", ")}</td>
+            <td style="padding:8px 0;font-weight:500">${safeServices}</td>
           </tr>
           <tr>
             <td style="padding:8px 0;color:#666">Property</td>
-            <td style="padding:8px 0;font-weight:500">${v.propertyAddress}</td>
+            <td style="padding:8px 0;font-weight:500">${safeAddress}</td>
           </tr>
-          ${sanitizedNotes ? `
+          ${safeNotes ? `
           <tr>
             <td style="padding:8px 0;color:#666;vertical-align:top">Notes</td>
-            <td style="padding:8px 0;color:#555">${sanitizedNotes}</td>
+            <td style="padding:8px 0;color:#555">${safeNotes}</td>
           </tr>` : ""}
         </table>
         <p style="margin:24px 0 0;font-size:13px;color:#999">

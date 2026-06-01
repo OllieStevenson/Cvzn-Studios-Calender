@@ -25,11 +25,18 @@ export default async function BookPage() {
     if (error) throw error;
 
     return <BookingClient initialSlots={slots ?? []} />;
-  } catch (err: any) {
+  } catch (err) {
+    // Log full detail server-side; show a generic message to visitors
+    console.error("Booking page failed to load:", err);
     return (
-      <div style={{ padding: 40, fontFamily: "monospace" }}>
-        <strong>Error loading booking page:</strong>
-        <pre>{err?.message ?? String(err)}</pre>
+      <div className="min-h-screen flex items-center justify-center p-8 text-center">
+        <div className="space-y-2">
+          <p className="text-white/80 text-sm">We couldn&rsquo;t load the booking page just now.</p>
+          <p className="text-white/40 text-xs">
+            Please try again shortly, or email{" "}
+            <a href="mailto:ollie@cvznstudios.co.uk" className="underline">ollie@cvznstudios.co.uk</a>.
+          </p>
+        </div>
       </div>
     );
   }
