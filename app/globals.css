@@ -19,30 +19,19 @@
   }
 }
 
-/* Page transition overlay — radial iris */
-#pt-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  background: #ffffff;
-  pointer-events: none;
-  clip-path: circle(0% at var(--cx, 50%) var(--cy, 50%));
-  will-change: clip-path;
+/* Page transition — smooth cross-dissolve */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root) {
+    animation: 180ms ease-in both vt-out;
+  }
+  ::view-transition-new(root) {
+    animation: 280ms ease-out both vt-in;
+  }
 }
-#pt-overlay.pt-in {
-  pointer-events: all;
-  animation: pt-expand 0.32s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+@keyframes vt-out {
+  to { opacity: 0; }
 }
-#pt-overlay.pt-out {
-  pointer-events: none;
-  animation: pt-contract 0.38s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-@keyframes pt-expand {
-  from { clip-path: circle(0% at var(--cx, 50%) var(--cy, 50%)); }
-  to   { clip-path: circle(150% at var(--cx, 50%) var(--cy, 50%)); }
-}
-@keyframes pt-contract {
-  from { clip-path: circle(150% at var(--cx, 50%) var(--cy, 50%)); }
-  to   { clip-path: circle(0% at var(--cx, 50%) var(--cy, 50%)); }
+@keyframes vt-in {
+  from { opacity: 0; }
 }
 

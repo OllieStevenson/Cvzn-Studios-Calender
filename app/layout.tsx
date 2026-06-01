@@ -21,7 +21,6 @@ export default function RootLayout({
     <html lang="en" className={`${geist.variable} h-full`}>
       <body className="min-h-full bg-[#0a0a0a] text-white font-sans antialiased">
         {children}
-        <div id="pt-overlay" aria-hidden="true" />
       </body>
     </html>
   );

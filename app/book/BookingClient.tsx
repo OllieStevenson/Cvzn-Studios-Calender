@@ -79,21 +79,6 @@ export default function BookingClient({ initialSlots }: Props) {
     notes: "",
   });
 
-  // Contract iris from screen centre on mount
-  useEffect(() => {
-    const overlay = document.getElementById('pt-overlay')
-    if (!overlay) return
-    overlay.style.setProperty('--cx', '50%')
-    overlay.style.setProperty('--cy', '50%')
-    let t: ReturnType<typeof setTimeout>
-    requestAnimationFrame(() => {
-      overlay.classList.remove('pt-in')
-      overlay.classList.add('pt-out')
-      t = setTimeout(() => overlay.classList.remove('pt-out'), 420)
-    })
-    return () => clearTimeout(t)
-  }, [])
-
   // Cursor parallax — desktop only
   const bgRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
