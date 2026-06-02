@@ -132,57 +132,31 @@ export async function submitBooking(data: {
   if (fetchError || !startSlots || startSlots.length === 0)
     return { error: "Could not find the selected slots." };
 
+  // Fast, friendly pre-check so a stale selection gets a clear message. This is
+  // NOT the authoritative guard — reserve_booking re-checks atomically below.
   if (startSlots.some((s) => s.status !== "open"))
     return { error: "One or more of your selected slots has just been taken. Please review your selection." };
 
-  const allSlotIdsToBlock: string[] = [];
+  // ── Atomic claim via Postgres RPC (closes the booking race) ────────
+  // reserve_booking locks the slots, re-verifies they're still open, inserts
+  // the booking and flips the slots to "pending" — all in one transaction.
+  // Two concurrent requests for the same slot serialise; the loser gets
+  // SLOT_TAKEN and nothing is written.
+  const { error: reserveError } = await admin.rpc("reserve_booking", {
+    p_slot_ids: v.slotIds,
+    p_services: v.services,
+    p_property_address: v.propertyAddress,
+    p_client_name: v.clientName,
+    p_client_email: email,
+    p_notes: sanitizedNotes,
+  });
 
-  for (const startSlot of startSlots) {
-    const startHour = parseInt(startSlot.start_time.split(":")[0]);
-    const endTime = `${String(startHour + 4).padStart(2, "0")}:00:00`;
-
-    const { data: block } = await supabase
-      .from("slots")
-      .select("id")
-      .eq("date", startSlot.date)
-      .eq("status", "open")
-      .gte("start_time", startSlot.start_time)
-      .lt("start_time", endTime)
-      .order("start_time");
-
-    if (block) allSlotIdsToBlock.push(...block.map((s) => s.id));
-  }
-
-  if (allSlotIdsToBlock.length === 0)
-    return { error: "No available slots found." };
-
-  // ── Writes via admin (elevated scope, post-validation only) ────────
-  const { data: booking, error: bookingError } = await admin
-    .from("bookings")
-    .insert({
-      slot_id: v.slotIds[0],
-      services: v.services,
-      property_address: v.propertyAddress,
-      client_name: v.clientName,
-      client_email: email,
-      notes: sanitizedNotes,
-      status: "pending",
-      booking_type: "half_day",
-    })
-    .select()
-    .single();
-
-  if (bookingError || !booking)
-    return { error: "Something went wrong. Please try again." };
-
-  const { error: updateError } = await admin
-    .from("slots")
-    .update({ status: "pending", booking_id: booking.id })
-    .in("id", allSlotIdsToBlock)
-    .eq("status", "open");
-
-  if (updateError) {
-    await admin.from("bookings").delete().eq("id", booking.id);
+  if (reserveError) {
+    if (reserveError.message?.includes("SLOT_TAKEN"))
+      return { error: "One or more of your selected slots has just been taken. Please review your selection." };
+    if (reserveError.message?.includes("NO_SLOTS"))
+      return { error: "No available slots found." };
+    console.error("reserve_booking failed:", reserveError);
     return { error: "Something went wrong. Please try again." };
   }
 
